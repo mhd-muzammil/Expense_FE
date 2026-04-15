@@ -1,11 +1,29 @@
 import axios from 'axios'
 
+// In dev: leave VITE_API_BASE_URL unset and Vite proxies '/api' → backend.
+// In prod (Vercel): set VITE_API_BASE_URL to e.g. 'https://apiexpense.bazhilgroups.in/api'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000,
 })
+
+// Surface a clear error in the console if the API rejects/refuses the request,
+// instead of letting components show a generic "Network Error".
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.error('[api]', error?.config?.method?.toUpperCase(), error?.config?.url, '→', error?.response?.status, error?.response?.data)
+    }
+    return Promise.reject(error)
+  },
+)
 
 // Types
 export interface Branch {
@@ -118,7 +136,7 @@ export const getExportUrl = (format: 'csv' | 'excel', filters: Filters = {}) => 
       params.set(key, String(value))
     }
   })
-  return `/api/export/?${params.toString()}`
+  return `${API_BASE_URL}/export/?${params.toString()}`
 }
 
 export default api
