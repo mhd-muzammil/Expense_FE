@@ -8,15 +8,13 @@ interface ExpenseFormProps {
   onClose: () => void
 }
 
-const CATEGORIES = ['Petrol', 'Food', 'Travel', 'Snacks', 'Misc']
-
 export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
-  const { branches, addExpense, editExpense, submitting } = useExpenseStore()
+  const { branches, categories, addExpense, editExpense, submitting } = useExpenseStore()
 
   const [formData, setFormData] = useState<ExpenseFormData>({
     date: expense?.date || new Date().toISOString().split('T')[0],
-    category: expense?.category || 'Petrol',
-    branch: expense?.branch || (branches[0]?.id || 1),
+    category: expense?.category || categories[0] || '',
+    branch: expense?.branch ?? (branches[0]?.id ?? 0),
     credited_amount: expense?.credited_amount ? parseFloat(expense.credited_amount) : null,
     credit_remark: expense?.credit_remark || '',
     debited_amount: expense?.debited_amount ? parseFloat(expense.debited_amount) : null,
@@ -129,7 +127,7 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className={inputClass}
               >
-                {CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

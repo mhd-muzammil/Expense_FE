@@ -4,6 +4,17 @@ import axios from 'axios'
 // In prod (Vercel): set VITE_API_BASE_URL to e.g. 'https://apiexpense.bazhilgroups.in/api'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
+const TOKEN_STORAGE_KEY = 'auth_token'
+
+export const getStoredToken = (): string | null =>
+  localStorage.getItem(TOKEN_STORAGE_KEY)
+
+export const setStoredToken = (token: string) =>
+  localStorage.setItem(TOKEN_STORAGE_KEY, token)
+
+export const clearStoredToken = () =>
+  localStorage.removeItem(TOKEN_STORAGE_KEY)
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -12,11 +23,24 @@ const api = axios.create({
   timeout: 30000,
 })
 
-// Surface a clear error in the console if the API rejects/refuses the request,
-// instead of letting components show a generic "Network Error".
+// Attach Authorization header to every request when a token is present.
+api.interceptors.request.use((config) => {
+  const token = getStoredToken()
+  if (token) {
+    config.headers.Authorization = `Token ${token}`
+  }
+  return config
+})
+
+// On 401 → token expired/invalid. Clear it and dispatch a global event so
+// the App can re-render the login screen without a hard reload.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error?.response?.status === 401) {
+      clearStoredToken()
+      window.dispatchEvent(new Event('auth:logout'))
+    }
     if (import.meta.env.DEV) {
       // eslint-disable-next-line no-console
       console.error('[api]', error?.config?.method?.toUpperCase(), error?.config?.url, '→', error?.response?.status, error?.response?.data)
@@ -24,6 +48,27 @@ api.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+
+// ---------------------------------------------------------------------------
+// Auth API
+// ---------------------------------------------------------------------------
+export interface AuthUser {
+  username: string
+  is_staff: boolean
+}
+
+export interface LoginResponse extends AuthUser {
+  token: string
+}
+
+export const login = (username: string, password: string) =>
+  api.post<LoginResponse>('/auth/login/', { username, password }).then(res => res.data)
+
+export const logout = () =>
+  api.post('/auth/logout/').then(() => undefined)
+
+export const fetchMe = () =>
+  api.get<AuthUser>('/auth/me/').then(res => res.data)
 
 // Types
 export interface Branch {
@@ -82,6 +127,7 @@ export interface PaginatedResponse<T> {
   count: number
   next: string | null
   previous: string | null
+  page_size?: number
   results: T[]
 }
 
@@ -95,6 +141,9 @@ export interface Filters {
 }
 
 // API Functions
+export const fetchCategories = () =>
+  api.get<string[]>('/categories/').then(res => res.data)
+
 export const fetchBranches = () =>
   api.get<Branch[]>('/branches/').then(res => res.data)
 

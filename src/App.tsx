@@ -3,20 +3,53 @@ import useExpenseStore from '@/store/useExpenseStore'
 import Layout from '@/components/Layout'
 import Dashboard from '@/components/Dashboard'
 import ExpenseTable from '@/components/ExpenseTable'
-import { LayoutDashboard, Receipt } from 'lucide-react'
+import Login from '@/components/Login'
+import { LayoutDashboard, Receipt, Loader2 } from 'lucide-react'
 
 type Tab = 'dashboard' | 'expenses'
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
-  const { loadAll } = useExpenseStore()
+  const { user, authReady, initAuth, loadAll, logout } = useExpenseStore()
 
+  // Initial auth check (validates any stored token against the API).
   useEffect(() => {
-    loadAll()
+    initAuth()
   }, [])
 
+  // 401 from any API call → server says token is dead → kick to login.
+  useEffect(() => {
+    const handler = () => {
+      if (useExpenseStore.getState().user) {
+        useExpenseStore.setState({ user: null })
+      }
+    }
+    window.addEventListener('auth:logout', handler)
+    return () => window.removeEventListener('auth:logout', handler)
+  }, [])
+
+  // Once we have a logged-in user, load all data.
+  useEffect(() => {
+    if (user) {
+      loadAll()
+    }
+  }, [user])
+
+  // Splash while we check the stored token on first paint.
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-50 dark:bg-surface-900">
+        <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Login />
+  }
+
   return (
-    <Layout>
+    <Layout onLogout={logout}>
       {/* Tab Navigation */}
       <div className="flex items-center gap-1 mb-6 p-1 rounded-xl bg-surface-100 dark:bg-surface-800 w-fit">
         <button

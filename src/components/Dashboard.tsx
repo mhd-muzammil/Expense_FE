@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency } from '@/lib/utils'
+import { getCategoryHex } from '@/lib/categories'
+import { CURRENCY_SYMBOL } from '@/lib/brand'
 import {
   Wallet,
   TrendingUp,
@@ -13,8 +15,6 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Legend,
   BarChart, Bar,
 } from 'recharts'
-
-const COLORS = ['#0d9488', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
 
 function SkeletonCard() {
   return (
@@ -36,7 +36,7 @@ function SkeletonChart() {
 }
 
 export default function Dashboard() {
-  const { dashboard, loadingDashboard, branches, filters, setFilters, loadDashboard, loadExpenses } = useExpenseStore()
+  const { dashboard, loadingDashboard, branches, categories, filters, setFilters, loadDashboard, loadExpenses } = useExpenseStore()
 
   const handleFilterChange = async (key: string, value: string) => {
     setFilters({ [key]: value || undefined })
@@ -106,7 +106,7 @@ export default function Dashboard() {
             focus:border-primary-500 transition-all"
         >
           <option value="">All Categories</option>
-          {['Petrol', 'Food', 'Travel', 'Snacks', 'Misc'].map((c) => (
+          {categories.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
@@ -234,7 +234,7 @@ export default function Dashboard() {
                   strokeWidth={0}
                 >
                   {categoryData.map((_, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                    <Cell key={index} fill={getCategoryHex(categoryData[index]?.name, index)} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -273,7 +273,7 @@ export default function Dashboard() {
                   tick={{ fontSize: 11, fill: '#94a3b8' }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={(v) => `${CURRENCY_SYMBOL}${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
                   formatter={(value) => formatCurrency(Number(value ?? 0))}
@@ -327,7 +327,7 @@ export default function Dashboard() {
                   tick={{ fontSize: 11, fill: '#94a3b8' }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={(v) => `${CURRENCY_SYMBOL}${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
                   formatter={(value) => formatCurrency(Number(value ?? 0))}

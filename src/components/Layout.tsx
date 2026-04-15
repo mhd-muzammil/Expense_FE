@@ -1,9 +1,15 @@
 import { useEffect } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
-import { Moon, Sun, X } from 'lucide-react'
+import { APP_NAME, APP_SUBTITLE, CURRENCY_SYMBOL } from '@/lib/brand'
+import { Moon, Sun, X, LogOut } from 'lucide-react'
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-  const { theme, toggleTheme, toasts, removeToast } = useExpenseStore()
+interface LayoutProps {
+  children: React.ReactNode
+  onLogout?: () => void
+}
+
+export default function Layout({ children, onLogout }: LayoutProps) {
+  const { theme, toggleTheme, toasts, removeToast, user } = useExpenseStore()
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -22,33 +28,58 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {/* Logo */}
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-lg">₹</span>
+                <span className="text-white font-bold text-lg">{CURRENCY_SYMBOL}</span>
               </div>
               <div>
                 <h1 className="text-lg font-bold text-surface-900 dark:text-white leading-tight">
-                  ExpenseTrack
+                  {APP_NAME}
                 </h1>
                 <p className="text-xs text-surface-500 dark:text-surface-400 leading-tight">
-                  CEO Dashboard
+                  {APP_SUBTITLE}
                 </p>
               </div>
             </div>
 
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="relative w-10 h-10 rounded-xl bg-surface-100 dark:bg-surface-800
-                hover:bg-surface-200 dark:hover:bg-surface-700
-                flex items-center justify-center transition-all duration-200
-                hover:scale-105 active:scale-95"
-              aria-label="Toggle theme"
-            >
-              {theme === 'light' ? (
-                <Moon className="w-5 h-5 text-surface-600" />
-              ) : (
-                <Sun className="w-5 h-5 text-yellow-400" />
+            {/* Right cluster: user, theme, logout */}
+            <div className="flex items-center gap-2">
+              {user && (
+                <span className="hidden sm:inline text-sm text-surface-600 dark:text-surface-300 mr-1">
+                  {user.username}
+                </span>
               )}
-            </button>
+
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="relative w-10 h-10 rounded-xl bg-surface-100 dark:bg-surface-800
+                  hover:bg-surface-200 dark:hover:bg-surface-700
+                  flex items-center justify-center transition-all duration-200
+                  hover:scale-105 active:scale-95"
+                aria-label="Toggle theme"
+              >
+                {theme === 'light' ? (
+                  <Moon className="w-5 h-5 text-surface-600" />
+                ) : (
+                  <Sun className="w-5 h-5 text-yellow-400" />
+                )}
+              </button>
+
+              {/* Logout */}
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="relative w-10 h-10 rounded-xl bg-surface-100 dark:bg-surface-800
+                    hover:bg-red-50 dark:hover:bg-red-900/20
+                    flex items-center justify-center transition-all duration-200
+                    hover:scale-105 active:scale-95
+                    text-surface-600 dark:text-surface-300 hover:text-red-600 dark:hover:text-red-400"
+                  aria-label="Sign out"
+                  title="Sign out"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>

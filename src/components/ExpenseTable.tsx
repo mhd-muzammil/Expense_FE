@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { getCategoryBadgeClass } from '@/lib/categories'
 import type { Expense } from '@/lib/api'
 import { getExportUrl } from '@/lib/api'
 import ExpenseForm from './ExpenseForm'
@@ -31,7 +32,7 @@ function SkeletonRow() {
 
 export default function ExpenseTable() {
   const {
-    expenses, totalCount, loadingExpenses,
+    expenses, totalCount, pageSize, loadingExpenses,
     branches, filters, setFilters,
     removeExpense, loadExpenses, loadDashboard,
   } = useExpenseStore()
@@ -43,7 +44,7 @@ export default function ExpenseTable() {
   const [searchTerm, setSearchTerm] = useState('')
 
   const currentPage = filters.page || 1
-  const totalPages = Math.ceil(totalCount / 50) || 1
+  const totalPages = Math.max(1, Math.ceil(totalCount / Math.max(pageSize, 1)))
 
   const handleSearch = () => {
     setFilters({ search: searchTerm || undefined, page: 1 })
@@ -187,14 +188,7 @@ export default function ExpenseTable() {
                         {formatDate(expense.date)}
                       </td>
                       <td className="p-3">
-                        <span className={`
-                          inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                          ${expense.category === 'Petrol' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                            expense.category === 'Food' ? 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
-                            expense.category === 'Travel' ? 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
-                            expense.category === 'Snacks' ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                            'bg-gray-50 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'}
-                        `}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadgeClass(expense.category)}`}>
                           {expense.category}
                         </span>
                       </td>

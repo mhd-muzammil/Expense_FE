@@ -1,16 +1,25 @@
 import { create } from 'zustand'
+import { TOAST_DURATION_MS } from '@/lib/brand'
 import {
   fetchBranches,
+  fetchCategories,
   fetchExpenses,
   fetchDashboard,
   createExpense,
   updateExpense,
   deleteExpense,
+  login as apiLogin,
+  logout as apiLogout,
+  fetchMe,
+  getStoredToken,
+  setStoredToken,
+  clearStoredToken,
   type Branch,
   type Expense,
   type DashboardData,
   type ExpenseFormData,
   type Filters,
+  type AuthUser,
 } from '@/lib/api'
 
 interface Toast {
@@ -20,11 +29,18 @@ interface Toast {
 }
 
 interface ExpenseStore {
+  // Auth
+  user: AuthUser | null
+  authReady: boolean   // initial auth check completed
+  authLoading: boolean // login/me request in flight
+
   // Data
   branches: Branch[]
+  categories: string[]
   expenses: Expense[]
   dashboard: DashboardData | null
   totalCount: number
+  pageSize: number
 
   // Loading states
   loadingBranches: boolean
@@ -39,12 +55,18 @@ interface ExpenseStore {
   toasts: Toast[]
   theme: 'light' | 'dark'
 
+  // Auth actions
+  initAuth: () => Promise<void>
+  login: (username: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+
   // Actions
   setBranches: (branches: Branch[]) => void
   setFilters: (filters: Partial<Filters>) => void
   resetFilters: () => void
 
   loadBranches: () => Promise<void>
+  loadCategories: () => Promise<void>
   loadExpenses: () => Promise<void>
   loadDashboard: () => Promise<void>
   loadAll: () => Promise<void>
@@ -60,11 +82,18 @@ interface ExpenseStore {
 }
 
 const useExpenseStore = create<ExpenseStore>((set, get) => ({
+  // Auth
+  user: null,
+  authReady: false,
+  authLoading: false,
+
   // Initial state
   branches: [],
+  categories: [],
   expenses: [],
   dashboard: null,
   totalCount: 0,
+  pageSize: 50,
 
   loadingBranches: false,
   loadingExpenses: false,
@@ -75,6 +104,52 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
 
   toasts: [],
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
+
+  // Auth
+  initAuth: async () => {
+    const token = getStoredToken()
+    if (!token) {
+      set({ authReady: true, user: null })
+      return
+    }
+    try {
+      const user = await fetchMe()
+      set({ user, authReady: true })
+    } catch {
+      // Token rejected — interceptor already cleared it.
+      set({ user: null, authReady: true })
+    }
+  },
+
+  login: async (username, password) => {
+    set({ authLoading: true })
+    try {
+      const { token, ...user } = await apiLogin(username, password)
+      setStoredToken(token)
+      set({ user, authLoading: false })
+      get().addToast('success', `Welcome, ${user.username}`)
+    } catch (err) {
+      set({ authLoading: false })
+      throw err
+    }
+  },
+
+  logout: async () => {
+    try {
+      await apiLogout()
+    } catch {
+      // Ignore — even if server-side delete fails, we clear locally.
+    }
+    clearStoredToken()
+    set({
+      user: null,
+      branches: [],
+      expenses: [],
+      dashboard: null,
+      totalCount: 0,
+      filters: {},
+    })
+  },
 
   // Setters
   setBranches: (branches) => set({ branches }),
@@ -98,6 +173,16 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     }
   },
 
+  loadCategories: async () => {
+    try {
+      const data = await fetchCategories()
+      set({ categories: data })
+    } catch (err) {
+      console.error('Failed to load categories:', err)
+      // Non-fatal — dropdowns fall back to empty list; a toast would be noisy.
+    }
+  },
+
   loadExpenses: async () => {
     set({ loadingExpenses: true })
     try {
@@ -105,6 +190,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       set({
         expenses: data.results,
         totalCount: data.count,
+        pageSize: data.page_size ?? get().pageSize,
         loadingExpenses: false,
       })
     } catch (err) {
@@ -127,8 +213,13 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
   },
 
   loadAll: async () => {
-    const { loadBranches, loadExpenses, loadDashboard } = get()
-    await Promise.all([loadBranches(), loadExpenses(), loadDashboard()])
+    const { loadBranches, loadCategories, loadExpenses, loadDashboard } = get()
+    await Promise.all([
+      loadBranches(),
+      loadCategories(),
+      loadExpenses(),
+      loadDashboard(),
+    ])
   },
 
   // CRUD
@@ -186,7 +277,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     set((state) => ({
       toasts: [...state.toasts, { id, type, message }],
     }))
-    setTimeout(() => get().removeToast(id), 4000)
+    setTimeout(() => get().removeToast(id), TOAST_DURATION_MS)
   },
 
   removeToast: (id) => {
