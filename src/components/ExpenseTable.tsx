@@ -3,7 +3,7 @@ import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { getCategoryBadgeClass } from '@/lib/categories'
 import type { Expense } from '@/lib/api'
-import { getExportUrl } from '@/lib/api'
+import { downloadExport } from '@/lib/api'
 import ExpenseForm from './ExpenseForm'
 import {
   Plus,
@@ -61,9 +61,13 @@ export default function ExpenseTable() {
     setDeleteConfirm(null)
   }
 
-  const handleExport = (format: 'csv' | 'excel') => {
-    const url = getExportUrl(format, filters)
-    window.open(url, '_blank')
+  const handleExport = async (fileType: 'csv' | 'excel') => {
+    try {
+      await downloadExport(fileType, filters)
+    } catch (err) {
+      console.error('Export failed:', err)
+      useExpenseStore.getState().addToast('error', 'Export failed')
+    }
   }
 
   return (

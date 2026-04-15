@@ -176,15 +176,40 @@ export const fetchDashboard = (filters: Filters = {}) => {
   return api.get<DashboardData>(`/dashboard/?${params.toString()}`).then(res => res.data)
 }
 
-export const getExportUrl = (format: 'csv' | 'excel', filters: Filters = {}) => {
+/**
+ * Fetches the export file via axios (so the auth token is attached) and
+ * triggers a browser download. Using `window.open` wouldn't work because
+ * direct navigation can't send the Authorization header.
+ */
+export const downloadExport = async (
+  fileType: 'csv' | 'excel',
+  filters: Filters = {},
+): Promise<void> => {
   const params = new URLSearchParams()
-  params.set('format', format)
+  // `type` — DRF reserves the `format` query param for content negotiation.
+  params.set('type', fileType)
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== '') {
       params.set(key, String(value))
     }
   })
-  return `${API_BASE_URL}/export/?${params.toString()}`
+
+  const response = await api.get(`/export/?${params.toString()}`, {
+    responseType: 'blob',
+  })
+
+  const blob = new Blob([response.data], {
+    type: response.headers['content-type'] || 'application/octet-stream',
+  })
+  const blobUrl = URL.createObjectURL(blob)
+
+  const link = document.createElement('a')
+  link.href = blobUrl
+  link.download = fileType === 'excel' ? 'expenses.xlsx' : 'expenses.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(blobUrl)
 }
 
 export default api
