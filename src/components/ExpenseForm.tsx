@@ -148,7 +148,7 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
               className={inputClass}
             >
               {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name} — {b.location}</option>
+                <option key={b.id} value={b.id}>{b.location}</option>
               ))}
             </select>
             {errors.branch && <p className="text-red-500 text-xs mt-1">{errors.branch}</p>}

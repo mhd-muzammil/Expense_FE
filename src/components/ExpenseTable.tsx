@@ -199,7 +199,7 @@ export default function ExpenseTable() {
                         </span>
                       </td>
                       <td className="p-3 text-surface-700 dark:text-surface-300 whitespace-nowrap">
-                        {expense.branch_name}
+                        {expense.branch_location}
                       </td>
                       <td className="p-3 text-right whitespace-nowrap">
                         {credit > 0 ? (
@@ -318,7 +318,7 @@ export default function ExpenseTable() {
               {[
                 ['Date', formatDate(viewingExpense.date)],
                 ['Category', viewingExpense.category],
-                ['Branch', viewingExpense.branch_name],
+                ['Branch', viewingExpense.branch_location],
                 ['Credit Amount', viewingExpense.credited_amount ? formatCurrency(viewingExpense.credited_amount) : '—'],
                 ['Credit Remark', viewingExpense.credit_remark || '—'],
                 ['Debit Amount', viewingExpense.debited_amount ? formatCurrency(viewingExpense.debited_amount) : '—'],

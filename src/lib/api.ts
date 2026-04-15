@@ -28,7 +28,6 @@ api.interceptors.response.use(
 // Types
 export interface Branch {
   id: number
-  name: string
   location: string
   current_balance: string
   created_at: string
@@ -39,7 +38,7 @@ export interface Expense {
   date: string
   category: string
   branch: number
-  branch_name: string
+  branch_location: string
   credited_amount: string | null
   credit_remark: string
   debited_amount: string | null
