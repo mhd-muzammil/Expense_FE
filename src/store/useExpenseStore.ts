@@ -247,11 +247,17 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err: any) {
       set({ submitting: false })
-      const msg = err?.response?.data
-        ? typeof err.response.data === 'string'
-          ? err.response.data
-          : JSON.stringify(err.response.data)
-        : 'Failed to add expense'
+      let msg = 'Failed to add expense'
+      if (err?.response?.data) {
+        if (typeof err.response.data === 'string') {
+          msg = err.response.data
+        } else if (Array.isArray(err.response.data.non_field_errors)) {
+          msg = err.response.data.non_field_errors[0]
+        } else {
+          const firstErr = Object.values(err.response.data).flat()[0]
+          msg = typeof firstErr === 'string' ? firstErr : JSON.stringify(err.response.data)
+        }
+      }
       get().addToast('error', msg)
       throw err
     }
@@ -266,11 +272,17 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err: any) {
       set({ submitting: false })
-      const msg = err?.response?.data
-        ? typeof err.response.data === 'string'
-          ? err.response.data
-          : JSON.stringify(err.response.data)
-        : 'Failed to update expense'
+      let msg = 'Failed to update expense'
+      if (err?.response?.data) {
+        if (typeof err.response.data === 'string') {
+          msg = err.response.data
+        } else if (Array.isArray(err.response.data.non_field_errors)) {
+          msg = err.response.data.non_field_errors[0]
+        } else {
+          const firstErr = Object.values(err.response.data).flat()[0]
+          msg = typeof firstErr === 'string' ? firstErr : JSON.stringify(err.response.data)
+        }
+      }
       get().addToast('error', msg)
       throw err
     }
