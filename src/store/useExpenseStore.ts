@@ -20,6 +20,8 @@ import {
   type ExpenseFormData,
   type Filters,
   type AuthUser,
+  type PaymentModeBalance,
+  fetchPaymentModeBalances,
 } from '@/lib/api'
 
 interface Toast {
@@ -39,6 +41,7 @@ interface ExpenseStore {
   categories: string[]
   expenses: Expense[]
   dashboard: DashboardData | null
+  paymentModeBalances: PaymentModeBalance[]
   totalCount: number
   pageSize: number
 
@@ -69,6 +72,7 @@ interface ExpenseStore {
   loadCategories: () => Promise<void>
   loadExpenses: () => Promise<void>
   loadDashboard: () => Promise<void>
+  loadPaymentModeBalances: () => Promise<void>
   loadAll: () => Promise<void>
 
   addExpense: (data: ExpenseFormData) => Promise<void>
@@ -92,6 +96,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
   categories: [],
   expenses: [],
   dashboard: null,
+  paymentModeBalances: [],
   totalCount: 0,
   pageSize: 50,
 
@@ -212,13 +217,23 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     }
   },
 
+  loadPaymentModeBalances: async () => {
+    try {
+      const data = await fetchPaymentModeBalances()
+      set({ paymentModeBalances: data })
+    } catch (err) {
+      console.error('Failed to load payment mode balances:', err)
+    }
+  },
+
   loadAll: async () => {
-    const { loadBranches, loadCategories, loadExpenses, loadDashboard } = get()
+    const { loadBranches, loadCategories, loadExpenses, loadDashboard, loadPaymentModeBalances } = get()
     await Promise.all([
       loadBranches(),
       loadCategories(),
       loadExpenses(),
       loadDashboard(),
+      loadPaymentModeBalances(),
     ])
   },
 
@@ -229,7 +244,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       await createExpense(data)
       set({ submitting: false })
       get().addToast('success', 'Expense added successfully')
-      await Promise.all([get().loadExpenses(), get().loadDashboard()])
+      await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err: any) {
       set({ submitting: false })
       const msg = err?.response?.data
@@ -248,7 +263,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       await updateExpense(id, data)
       set({ submitting: false })
       get().addToast('success', 'Expense updated successfully')
-      await Promise.all([get().loadExpenses(), get().loadDashboard()])
+      await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err: any) {
       set({ submitting: false })
       const msg = err?.response?.data
@@ -265,7 +280,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     try {
       await deleteExpense(id)
       get().addToast('success', 'Expense deleted successfully')
-      await Promise.all([get().loadExpenses(), get().loadDashboard()])
+      await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err) {
       get().addToast('error', 'Failed to delete expense')
     }

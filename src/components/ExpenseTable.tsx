@@ -21,7 +21,7 @@ import {
 function SkeletonRow() {
   return (
     <tr className="border-b border-surface-100 dark:border-surface-700/50">
-      {Array.from({ length: 8 }).map((_, i) => (
+      {Array.from({ length: 10 }).map((_, i) => (
         <td key={i} className="p-3">
           <div className="skeleton h-4 w-full" />
         </td>
@@ -152,10 +152,11 @@ export default function ExpenseTable() {
                 <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Date</th>
                 <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Category</th>
                 <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Branch</th>
-                <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Credit</th>
-                <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Credit Remark</th>
-                <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Debit</th>
-                <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Debit Remark</th>
+                <th className="text-center p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Type</th>
+                <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Amount</th>
+                <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Remark</th>
+                <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Person</th>
+                <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Mode</th>
                 <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Balance</th>
                 <th className="text-center p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Actions</th>
               </tr>
@@ -165,7 +166,7 @@ export default function ExpenseTable() {
                 Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
               ) : expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-12 text-surface-400">
+                  <td colSpan={11} className="text-center py-12 text-surface-400">
                     <div className="flex flex-col items-center gap-2">
                       <FileSpreadsheet className="w-10 h-10 text-surface-300" />
                       <p className="text-base font-medium">No expenses found</p>
@@ -177,7 +178,12 @@ export default function ExpenseTable() {
                 expenses.map((expense, idx) => {
                   const credit = expense.credited_amount ? parseFloat(expense.credited_amount) : 0
                   const debit = expense.debited_amount ? parseFloat(expense.debited_amount) : 0
-                  const balance = parseFloat(expense.running_balance)
+                  const isCredit = credit > 0
+                  const amount = isCredit ? credit : debit
+                  const remark = isCredit ? expense.credit_remark : expense.debit_remark
+                  const person = isCredit ? expense.credit_person : expense.debit_person
+                  const mode = isCredit ? expense.credit_payment_mode : expense.debit_payment_mode
+                  const balances = expense.running_balances || {}
 
                   return (
                     <tr
@@ -199,34 +205,49 @@ export default function ExpenseTable() {
                       <td className="p-3 text-surface-700 dark:text-surface-300 whitespace-nowrap">
                         {expense.branch_location}
                       </td>
-                      <td className="p-3 text-right whitespace-nowrap">
-                        {credit > 0 ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                            +{formatCurrency(credit)}
-                          </span>
-                        ) : (
-                          <span className="text-surface-300 dark:text-surface-600">—</span>
-                        )}
-                      </td>
-                      <td className="p-3 text-surface-500 dark:text-surface-400 text-xs max-w-[120px] truncate">
-                        {expense.credit_remark || '—'}
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          isCredit
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {isCredit ? 'Credit' : 'Debit'}
+                        </span>
                       </td>
                       <td className="p-3 text-right whitespace-nowrap">
-                        {debit > 0 ? (
-                          <span className="text-red-600 dark:text-red-400 font-medium">
-                            −{formatCurrency(debit)}
-                          </span>
-                        ) : (
-                          <span className="text-surface-300 dark:text-surface-600">—</span>
-                        )}
+                        <span className={`font-medium ${
+                          isCredit
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}>
+                          {isCredit ? '+' : '−'}{formatCurrency(amount)}
+                        </span>
                       </td>
                       <td className="p-3 text-surface-500 dark:text-surface-400 text-xs max-w-[120px] truncate">
-                        {expense.debit_remark || '—'}
+                        {remark || '—'}
                       </td>
-                      <td className={`p-3 text-right font-semibold whitespace-nowrap ${
-                        balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {formatCurrency(balance)}
+                      <td className="p-3 text-surface-500 dark:text-surface-400 text-xs whitespace-nowrap">
+                        {person || '—'}
+                      </td>
+                      <td className="p-3 text-surface-500 dark:text-surface-400 text-xs whitespace-nowrap">
+                        {mode || '—'}
+                      </td>
+                      <td className="p-3 text-right whitespace-nowrap">
+                        <div className="flex flex-col gap-0.5 items-end justify-center">
+                        {Object.entries(balances).length > 0 ? Object.entries(balances)
+                          .filter(([, val]) => parseFloat(val as string) !== 0)
+                          .map(([mode, bal]) => {
+                            const val = parseFloat(bal as string)
+                            return (
+                              <div key={mode} className={`text-[11px] font-semibold leading-tight ${
+                                val >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                              }`}>
+                                <span className="text-surface-400 font-normal mr-1">{mode}:</span>
+                                {formatCurrency(val)}
+                              </div>
+                            )
+                        }) : <span className="text-surface-400 text-xs">—</span>}
+                        </div>
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-center gap-1">
@@ -313,19 +334,37 @@ export default function ExpenseTable() {
               </button>
             </div>
             <div className="p-6 space-y-3">
-              {[
-                ['Date', formatDate(viewingExpense.date)],
-                ['Category', viewingExpense.category],
-                ['Branch', viewingExpense.branch_location],
-                ['Credit Amount', viewingExpense.credited_amount ? formatCurrency(viewingExpense.credited_amount) : '—'],
-                ['Credit Remark', viewingExpense.credit_remark || '—'],
-                ['Debit Amount', viewingExpense.debited_amount ? formatCurrency(viewingExpense.debited_amount) : '—'],
-                ['Debit Remark', viewingExpense.debit_remark || '—'],
-                ['Running Balance', formatCurrency(viewingExpense.running_balance)],
-              ].map(([label, value]) => (
+              {(() => {
+                const isCredit = viewingExpense.credited_amount && parseFloat(viewingExpense.credited_amount) > 0
+                return [
+                  ['Date', formatDate(viewingExpense.date)],
+                  ['Category', viewingExpense.category],
+                  ['Branch', viewingExpense.branch_location],
+                  ['Type', isCredit ? 'Credit' : 'Debit'],
+                  ['Amount', isCredit
+                    ? formatCurrency(viewingExpense.credited_amount!)
+                    : formatCurrency(viewingExpense.debited_amount!)],
+                  ['Remark', (isCredit ? viewingExpense.credit_remark : viewingExpense.debit_remark) || '—'],
+                  ['Person', (isCredit ? viewingExpense.credit_person : viewingExpense.debit_person) || '—'],
+                  ['Payment Mode', (isCredit ? viewingExpense.credit_payment_mode : viewingExpense.debit_payment_mode) || '—'],
+                  ...Object.entries(viewingExpense.running_balances || {})
+                    .filter(([, val]) => parseFloat(val as string) !== 0)
+                    .map(([mode, val]) => [`${mode} Balance`, formatCurrency(parseFloat(val as string))]),
+                ]
+              })().map(([label, value]) => (
                 <div key={label} className="flex justify-between items-center py-2 border-b border-surface-50 dark:border-surface-700/50 last:border-0">
                   <span className="text-sm text-surface-500 dark:text-surface-400">{label}</span>
-                  <span className="text-sm font-medium text-surface-900 dark:text-white">{value}</span>
+                  {label === 'Type' ? (
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                      value === 'Credit'
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                        : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    }`}>
+                      {value}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium text-surface-900 dark:text-white">{value}</span>
+                  )}
                 </div>
               ))}
             </div>

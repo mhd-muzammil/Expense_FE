@@ -86,9 +86,13 @@ export interface Expense {
   branch_location: string
   credited_amount: string | null
   credit_remark: string
+  credit_person: string
+  credit_payment_mode: string
   debited_amount: string | null
   debit_remark: string
-  running_balance: string
+  debit_person: string
+  debit_payment_mode: string
+  running_balances?: Record<string, string | number>
   created_at: string
 }
 
@@ -98,8 +102,12 @@ export interface ExpenseFormData {
   branch: number
   credited_amount: number | null
   credit_remark: string
+  credit_person: string
+  credit_payment_mode: string
   debited_amount: number | null
   debit_remark: string
+  debit_person: string
+  debit_payment_mode: string
 }
 
 export interface DashboardData {
@@ -211,5 +219,19 @@ export const downloadExport = async (
   link.remove()
   URL.revokeObjectURL(blobUrl)
 }
+
+// Payment Mode Balances
+export interface PaymentModeBalance {
+  id: number
+  payment_mode: string
+  initial_balance: string
+  current_balance: string
+}
+
+export const fetchPaymentModeBalances = () =>
+  api.get<PaymentModeBalance[]>('/payment-mode-balances/').then(res => res.data)
+
+export const setPaymentModeBalance = (payment_mode: string, initial_balance: number) =>
+  api.post<PaymentModeBalance>('/payment-mode-balances/set/', { payment_mode, initial_balance }).then(res => res.data)
 
 export default api

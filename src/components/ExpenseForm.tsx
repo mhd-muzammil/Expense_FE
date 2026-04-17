@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
 import type { Expense, ExpenseFormData } from '@/lib/api'
-import { X, Calendar, Tag, Building2, ArrowUpCircle, ArrowDownCircle, FileText } from 'lucide-react'
+import { X, Calendar, Tag, Building2, ArrowUpCircle, ArrowDownCircle, FileText, User, CreditCard } from 'lucide-react'
 
 interface ExpenseFormProps {
   expense?: Expense | null
@@ -17,10 +17,17 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
     branch: expense?.branch ?? (branches[0]?.id ?? 0),
     credited_amount: expense?.credited_amount ? parseFloat(expense.credited_amount) : null,
     credit_remark: expense?.credit_remark || '',
+    credit_person: expense?.credit_person || '',
+    credit_payment_mode: expense?.credit_payment_mode || '',
     debited_amount: expense?.debited_amount ? parseFloat(expense.debited_amount) : null,
     debit_remark: expense?.debit_remark || '',
+    debit_person: expense?.debit_person || '',
+    debit_payment_mode: expense?.debit_payment_mode || '',
   })
 
+  const [type, setType] = useState<'credit' | 'debit'>(
+    expense?.debited_amount && parseFloat(expense.debited_amount) > 0 ? 'debit' : 'credit'
+  )
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const validate = (): boolean => {
@@ -152,62 +159,97 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
             {errors.branch && <p className="text-red-500 text-xs mt-1">{errors.branch}</p>}
           </div>
 
-          {/* Credit Amount + Remark */}
-          <div className="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30">
-            <label className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-2">
-              <ArrowUpCircle className="w-3.5 h-3.5" /> Credit (Income)
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Amount (₹)"
-                value={formData.credited_amount ?? ''}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  credited_amount: e.target.value ? parseFloat(e.target.value) : null,
-                })}
-                className={inputClass}
-              />
-              <input
-                type="text"
-                placeholder="Remark"
-                value={formData.credit_remark}
-                onChange={(e) => setFormData({ ...formData, credit_remark: e.target.value })}
-                className={inputClass}
-              />
-            </div>
-            {errors.credited_amount && <p className="text-red-500 text-xs mt-1">{errors.credited_amount}</p>}
+          {/* Credit / Debit Toggle */}
+          <div className="flex rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
+            <button
+              type="button"
+              onClick={() => {
+                setType('credit')
+                setFormData({ ...formData, debited_amount: null, debit_remark: '', debit_person: '', debit_payment_mode: '' })
+              }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold transition-all ${
+                type === 'credit'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-surface-50 dark:bg-surface-900 text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800'
+              }`}
+            >
+              <ArrowUpCircle className="w-4 h-4" /> Credit
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setType('debit')
+                setFormData({ ...formData, credited_amount: null, credit_remark: '', credit_person: '', credit_payment_mode: '' })
+              }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold transition-all ${
+                type === 'debit'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-surface-50 dark:bg-surface-900 text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800'
+              }`}
+            >
+              <ArrowDownCircle className="w-4 h-4" /> Debit
+            </button>
           </div>
 
-          {/* Debit Amount + Remark */}
-          <div className="p-4 rounded-xl bg-red-50/50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30">
-            <label className="flex items-center gap-1.5 text-sm font-medium text-red-700 dark:text-red-400 mb-2">
-              <ArrowDownCircle className="w-3.5 h-3.5" /> Debit (Expense)
-            </label>
+          {/* Amount, Remark, Person, Payment Mode */}
+          <div className={`p-4 rounded-xl border ${
+            type === 'credit'
+              ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30'
+              : 'bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
+          }`}>
             <div className="grid grid-cols-2 gap-3">
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 placeholder="Amount (₹)"
-                value={formData.debited_amount ?? ''}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  debited_amount: e.target.value ? parseFloat(e.target.value) : null,
-                })}
+                value={type === 'credit' ? (formData.credited_amount ?? '') : (formData.debited_amount ?? '')}
+                onChange={(e) => {
+                  const val = e.target.value ? parseFloat(e.target.value) : null
+                  setFormData(type === 'credit'
+                    ? { ...formData, credited_amount: val }
+                    : { ...formData, debited_amount: val })
+                }}
                 className={inputClass}
               />
               <input
                 type="text"
                 placeholder="Remark"
-                value={formData.debit_remark}
-                onChange={(e) => setFormData({ ...formData, debit_remark: e.target.value })}
+                value={type === 'credit' ? formData.credit_remark : formData.debit_remark}
+                onChange={(e) => setFormData(type === 'credit'
+                  ? { ...formData, credit_remark: e.target.value }
+                  : { ...formData, debit_remark: e.target.value })}
                 className={inputClass}
               />
+              <input
+                type="text"
+                placeholder="Person Name"
+                value={type === 'credit' ? formData.credit_person : formData.debit_person}
+                onChange={(e) => setFormData(type === 'credit'
+                  ? { ...formData, credit_person: e.target.value }
+                  : { ...formData, debit_person: e.target.value })}
+                className={inputClass}
+              />
+              <select
+                value={type === 'credit' ? formData.credit_payment_mode : formData.debit_payment_mode}
+                onChange={(e) => setFormData(type === 'credit'
+                  ? { ...formData, credit_payment_mode: e.target.value }
+                  : { ...formData, debit_payment_mode: e.target.value })}
+                className={inputClass}
+              >
+                <option value="">Payment Mode</option>
+                <option value="Cash">Cash</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="GPay">GPay</option>
+                <option value="PhonePe">PhonePe</option>
+                <option value="UPI">UPI</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
-            {errors.debited_amount && <p className="text-red-500 text-xs mt-1">{errors.debited_amount}</p>}
+            {(errors.credited_amount || errors.debited_amount) && (
+              <p className="text-red-500 text-xs mt-1">{errors.credited_amount || errors.debited_amount}</p>
+            )}
           </div>
 
           {errors.amount && (
