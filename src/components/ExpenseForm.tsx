@@ -14,7 +14,7 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
   const [formData, setFormData] = useState<ExpenseFormData>({
     date: expense?.date || new Date().toISOString().split('T')[0],
     category: expense?.category || categories[0] || '',
-    branch: expense?.branch ?? (branches[0]?.id ?? 0),
+    branch: expense?.branch_location || (branches[0]?.location || ''),
     credited_amount: expense?.credited_amount ? parseFloat(expense.credited_amount) : null,
     credit_remark: expense?.credit_remark || '',
     credit_person: expense?.credit_person || '',
@@ -151,15 +151,19 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
             <label className="flex items-center gap-1.5 text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5">
               <Building2 className="w-3.5 h-3.5" /> Branch
             </label>
-            <select
+            <input
+              type="text"
+              list="branch-suggestions"
               value={formData.branch}
-              onChange={(e) => setFormData({ ...formData, branch: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
               className={inputClass}
-            >
+              placeholder="Type or select branch"
+            />
+            <datalist id="branch-suggestions">
               {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.location}</option>
+                <option key={b.id} value={b.location}>{b.location}</option>
               ))}
-            </select>
+            </datalist>
             {errors.branch && <p className="text-red-500 text-xs mt-1">{errors.branch}</p>}
           </div>
 

@@ -99,7 +99,7 @@ export interface Expense {
 export interface ExpenseFormData {
   date: string
   category: string
-  branch: number
+  branch: string
   credited_amount: number | null
   credit_remark: string
   credit_person: string
