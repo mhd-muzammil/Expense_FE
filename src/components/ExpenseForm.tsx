@@ -129,15 +129,19 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
               <label className="flex items-center gap-1.5 text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5">
                 <Tag className="w-3.5 h-3.5" /> Category
               </label>
-              <select
+              <input
+                type="text"
+                list="category-suggestions"
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className={inputClass}
-              >
+                placeholder="Type or select category"
+              />
+              <datalist id="category-suggestions">
                 {categories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
-              </select>
+              </datalist>
               {errors.category && <p className="text-red-500 text-xs mt-1">{errors.category}</p>}
             </div>
           </div>
