@@ -16,6 +16,11 @@ import {
   ChevronRight,
   Search,
   X,
+  Filter,
+  RotateCcw,
+  Calendar,
+  Building2,
+  Tag,
 } from 'lucide-react'
 
 function SkeletonRow() {
@@ -33,9 +38,11 @@ function SkeletonRow() {
 export default function ExpenseTable() {
   const {
     expenses, totalCount, pageSize, loadingExpenses,
-    branches, filters, setFilters,
+    branches, categories, filters, setFilters, resetFilters,
     removeExpense, loadExpenses, loadDashboard,
   } = useExpenseStore()
+
+  const [showFilters, setShowFilters] = useState(false)
 
   const [showForm, setShowForm] = useState(false)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
@@ -128,6 +135,24 @@ export default function ExpenseTable() {
           </button>
         </div>
 
+        {/* Advanced Filters Button */}
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all relative ${
+            showFilters || Object.keys(filters).filter(k => k !== 'page').length > 0
+              ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-800 text-primary-700 dark:text-primary-400'
+              : 'bg-white dark:bg-surface-800 border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700'
+          }`}
+        >
+          <Filter className="w-4 h-4" />
+          <span className="hidden sm:inline">Filters</span>
+          {Object.keys(filters).filter(k => k !== 'page' && filters[k as keyof typeof filters]).length > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary-500 text-[10px] font-bold text-white shadow-sm">
+              {Object.keys(filters).filter(k => k !== 'page' && filters[k as keyof typeof filters]).length}
+            </span>
+          )}
+        </button>
+
         {/* Add Button */}
         <button
           onClick={() => { setEditingExpense(null); setShowForm(true) }}
@@ -141,6 +166,119 @@ export default function ExpenseTable() {
           Add Expense
         </button>
       </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="p-5 rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 shadow-sm animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-surface-900 dark:text-white flex items-center gap-2">
+              <Filter className="w-4 h-4 text-primary-500" /> Advanced Filters
+            </h3>
+            <button
+              onClick={() => {
+                resetFilters()
+                setSearchTerm('')
+                setTimeout(() => loadExpenses(), 0)
+              }}
+              className="flex items-center gap-1.5 text-xs font-medium text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" /> Reset All
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Date From */}
+            <div>
+              <label className="block text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-1.5 ml-1">
+                From Date
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
+                <input
+                  type="date"
+                  value={filters.date_from || ''}
+                  onChange={(e) => {
+                    setFilters({ date_from: e.target.value || undefined, page: 1 })
+                    setTimeout(() => loadExpenses(), 0)
+                  }}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Date To */}
+            <div>
+              <label className="block text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-1.5 ml-1">
+                To Date
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
+                <input
+                  type="date"
+                  value={filters.date_to || ''}
+                  onChange={(e) => {
+                    setFilters({ date_to: e.target.value || undefined, page: 1 })
+                    setTimeout(() => loadExpenses(), 0)
+                  }}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Branch */}
+            <div>
+              <label className="block text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-1.5 ml-1">
+                Branch
+              </label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
+                <input
+                  type="text"
+                  list="filter-branch-suggestions"
+                  placeholder="All Branches"
+                  value={filters.branch || ''}
+                  onChange={(e) => {
+                    setFilters({ branch: e.target.value || undefined, page: 1 })
+                    setTimeout(() => loadExpenses(), 0)
+                  }}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                />
+                <datalist id="filter-branch-suggestions">
+                  {branches.map(b => (
+                    <option key={b.id} value={b.location}>{b.location}</option>
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            {/* Category */}
+            <div>
+              <label className="block text-[11px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-1.5 ml-1">
+                Category
+              </label>
+              <div className="relative">
+                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
+                <input
+                  type="text"
+                  list="filter-category-suggestions"
+                  placeholder="All Categories"
+                  value={filters.category || ''}
+                  onChange={(e) => {
+                    setFilters({ category: e.target.value || undefined, page: 1 })
+                    setTimeout(() => loadExpenses(), 0)
+                  }}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
+                />
+                <datalist id="filter-category-suggestions">
+                  {categories.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </datalist>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 overflow-hidden">
