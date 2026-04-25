@@ -14,6 +14,7 @@ import {
   Pencil,
   Check,
   Plus,
+  ChevronDown,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -50,6 +51,7 @@ export default function Dashboard() {
   const [newMode, setNewMode] = useState('')
   const [newModeBalance, setNewModeBalance] = useState('')
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined)
+  const [selectedMonth, setSelectedMonth] = useState<string>('')
 
   const onPieEnter = (_: any, index: number) => {
     setActiveIndex(index)
@@ -127,6 +129,13 @@ export default function Dashboard() {
   const totalBalance = dashboard ? parseFloat(dashboard.total_balance) || 0 : 0
   const totalCredits = dashboard ? parseFloat(dashboard.total_credits) || 0 : 0
   const totalDebits = dashboard ? parseFloat(dashboard.total_debits) || 0 : 0
+
+  // Set default selected month if not set
+  if (dashboard?.monthly_trend?.length && !selectedMonth) {
+    setSelectedMonth(dashboard.monthly_trend[dashboard.monthly_trend.length - 1].month)
+  }
+
+  const selectedMonthData = dashboard?.monthly_trend?.find(m => m.month === selectedMonth)
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -258,6 +267,58 @@ export default function Dashboard() {
             <div className="flex items-center gap-1 mt-1">
               <ArrowDownRight className="w-3.5 h-3.5 text-red-500" />
               <span className="text-sm text-red-600 dark:text-red-400">Expenses</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Monthly Trend Summary Card */}
+      {!loadingDashboard && dashboard && (
+        <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 overflow-hidden">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary-50 dark:bg-primary-900/30 flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                </div>
+                <h3 className="text-base font-semibold text-surface-900 dark:text-white">Monthly Total Expenses</h3>
+              </div>
+              
+              <div className="relative">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="appearance-none pl-3 pr-8 py-1.5 rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary-500/20 cursor-pointer"
+                >
+                  {dashboard.monthly_trend.map(m => (
+                    <option key={m.month} value={m.month}>{m.month}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100/50 dark:border-emerald-900/20">
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Total Credits</p>
+                <p className="text-xl font-bold text-surface-900 dark:text-white">
+                  {formatCurrency(parseFloat(selectedMonthData?.credits || '0'))}
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-red-50/50 dark:bg-red-900/10 border border-red-100/50 dark:border-red-900/20">
+                <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Total Debits</p>
+                <p className="text-xl font-bold text-surface-900 dark:text-white">
+                  {formatCurrency(parseFloat(selectedMonthData?.debits || '0'))}
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-200 dark:border-surface-700">
+                <p className="text-[10px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">Monthly Balance</p>
+                <p className={`text-xl font-bold ${(parseFloat(selectedMonthData?.credits || '0') - parseFloat(selectedMonthData?.debits || '0')) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {formatCurrency(parseFloat(selectedMonthData?.credits || '0') - parseFloat(selectedMonthData?.debits || '0'))}
+                </p>
+              </div>
             </div>
           </div>
         </div>
