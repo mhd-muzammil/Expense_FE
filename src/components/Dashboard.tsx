@@ -18,7 +18,7 @@ import {
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Legend,
-  BarChart, Bar,
+  BarChart, Bar, Sector,
 } from 'recharts'
 
 function SkeletonCard() {
@@ -49,6 +49,41 @@ export default function Dashboard() {
   const [showAddMode, setShowAddMode] = useState(false)
   const [newMode, setNewMode] = useState('')
   const [newModeBalance, setNewModeBalance] = useState('')
+  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined)
+
+  const onPieEnter = (_: any, index: number) => {
+    setActiveIndex(index)
+  }
+
+  const onPieLeave = () => {
+    setActiveIndex(undefined)
+  }
+
+  const renderActiveShape = (props: any) => {
+    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props
+    return (
+      <g>
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius + 8}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+        />
+        <Sector
+          cx={cx}
+          cy={cy}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          innerRadius={outerRadius + 12}
+          outerRadius={outerRadius + 15}
+          fill={fill}
+        />
+      </g>
+    )
+  }
 
   const handleFilterChange = async (key: string, value: string) => {
     setFilters({ [key]: value || undefined })
@@ -356,42 +391,85 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 stagger-children">
           {/* Pie Chart — Category Breakdown */}
           <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700">
-            <h3 className="text-base font-semibold text-surface-900 dark:text-white mb-4">
-              Expenses by Category
-            </h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  innerRadius={55}
-                  paddingAngle={3}
-                  strokeWidth={0}
-                >
-                  {categoryData.map((_, index) => (
-                    <Cell key={index} fill={getCategoryHex(categoryData[index]?.name, index)} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) => formatCurrency(Number(value ?? 0))}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
-                    fontSize: '13px',
-                  }}
-                />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: '12px' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold text-surface-900 dark:text-white">
+                Expenses by Category
+              </h3>
+              <div className="px-2 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider">
+                Total: {formatCurrency(totalDebits)}
+              </div>
+            </div>
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    activeIndex={activeIndex}
+                    activeShape={renderActiveShape}
+                    data={categoryData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    innerRadius={58}
+                    paddingAngle={4}
+                    strokeWidth={0}
+                    onMouseEnter={onPieEnter}
+                    onMouseLeave={onPieLeave}
+                  >
+                    {categoryData.map((_, index) => (
+                      <Cell 
+                        key={index} 
+                        fill={getCategoryHex(categoryData[index]?.name, index)}
+                        className="transition-all duration-300 outline-none"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => formatCurrency(Number(value ?? 0))}
+                    contentStyle={{
+                      borderRadius: '12px',
+                      border: 'none',
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
+                      fontSize: '13px',
+                      padding: '8px 12px',
+                    }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    align="center"
+                    iconType="circle"
+                    iconSize={8}
+                    wrapperStyle={{ 
+                      fontSize: '12px',
+                      paddingTop: '20px'
+                    }}
+                    formatter={(value, entry: any) => {
+                      const total = categoryData.reduce((acc, item) => acc + item.value, 0)
+                      const item = categoryData.find(d => d.name === value)
+                      const percent = total > 0 ? ((item?.value || 0) / total * 100).toFixed(0) : 0
+                      return (
+                        <span className="text-surface-600 dark:text-surface-400 font-medium">
+                          {value} <span className="ml-1 text-surface-400 dark:text-surface-500 text-[10px]">({percent}%)</span>
+                        </span>
+                      )
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              
+              {/* Central Label (Manual Overlay for better control) */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[calc(50%+18px)] text-center pointer-events-none">
+                <p className="text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-tighter">Spent</p>
+                <p className="text-sm font-bold text-surface-900 dark:text-white">
+                  {categoryData[activeIndex ?? -1]?.name ? (
+                    formatCurrency(categoryData[activeIndex ?? -1].value)
+                  ) : (
+                    formatCurrency(totalDebits)
+                  )}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Line Chart — Monthly Trend */}
