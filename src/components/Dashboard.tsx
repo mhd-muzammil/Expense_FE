@@ -464,19 +464,21 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie
-                    activeIndex={activeIndex}
-                    activeShape={renderActiveShape}
-                    data={categoryData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    innerRadius={58}
-                    paddingAngle={4}
-                    strokeWidth={0}
-                    onMouseEnter={onPieEnter}
-                    onMouseLeave={onPieLeave}
+                    {...({
+                      activeIndex,
+                      activeShape: renderActiveShape,
+                      data: categoryData,
+                      dataKey: "value",
+                      nameKey: "name",
+                      cx: "50%",
+                      cy: "50%",
+                      outerRadius: 80,
+                      innerRadius: 58,
+                      paddingAngle: 4,
+                      strokeWidth: 0,
+                      onMouseEnter: onPieEnter,
+                      onMouseLeave: onPieLeave,
+                    } as any)}
                   >
                     {categoryData.map((_, index) => (
                       <Cell 
