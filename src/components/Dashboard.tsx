@@ -97,31 +97,41 @@ export default function Dashboard() {
     <div className="space-y-6 animate-fade-in">
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
-        <select
-          value={filters.branch || ''}
-          onChange={(e) => handleFilterChange('branch', e.target.value)}
-          className="px-4 py-2.5 rounded-xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700
-            text-sm text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/30
-            focus:border-primary-500 transition-all"
-        >
-          <option value="">All Branches</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>{b.location}</option>
-          ))}
-        </select>
+        <div className="relative">
+          <input
+            type="text"
+            list="branch-suggestions"
+            value={filters.branch || ''}
+            onChange={(e) => handleFilterChange('branch', e.target.value)}
+            placeholder="All Branches"
+            className="px-4 py-2.5 rounded-xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700
+              text-sm text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/30
+              focus:border-primary-500 transition-all min-w-[160px]"
+          />
+          <datalist id="branch-suggestions">
+            {branches.map((b) => (
+              <option key={b.id} value={b.location}>{b.location}</option>
+            ))}
+          </datalist>
+        </div>
 
-        <select
-          value={filters.category || ''}
-          onChange={(e) => handleFilterChange('category', e.target.value)}
-          className="px-4 py-2.5 rounded-xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700
-            text-sm text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/30
-            focus:border-primary-500 transition-all"
-        >
-          <option value="">All Categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </select>
+        <div className="relative">
+          <input
+            type="text"
+            list="category-suggestions"
+            value={filters.category || ''}
+            onChange={(e) => handleFilterChange('category', e.target.value)}
+            placeholder="All Categories"
+            className="px-4 py-2.5 rounded-xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700
+              text-sm text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/30
+              focus:border-primary-500 transition-all min-w-[160px]"
+          />
+          <datalist id="category-suggestions">
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </datalist>
+        </div>
 
         <input
           type="date"
@@ -238,16 +248,21 @@ export default function Dashboard() {
         {/* Add new mode form */}
         {showAddMode && (
           <div className="flex items-center gap-2 mb-4 p-3 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700">
-            <select
-              value={newMode}
-              onChange={(e) => setNewMode(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm"
-            >
-              <option value="">Select Mode</option>
-              {PAYMENT_MODES.filter(m => !paymentModeBalances.find(b => b.payment_mode === m)).map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                list="payment-mode-suggestions"
+                value={newMode}
+                onChange={(e) => setNewMode(e.target.value)}
+                placeholder="Select or type mode"
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm"
+              />
+              <datalist id="payment-mode-suggestions">
+                {PAYMENT_MODES.filter(m => !paymentModeBalances.find(b => b.payment_mode === m)).map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </datalist>
+            </div>
             <input
               type="number"
               placeholder="Initial Balance"
