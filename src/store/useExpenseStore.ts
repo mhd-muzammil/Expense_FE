@@ -159,9 +159,17 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
   // Setters
   setBranches: (branches) => set({ branches }),
   setFilters: (newFilters) => {
-    set((state) => ({
-      filters: { ...state.filters, ...newFilters },
-    }))
+    set((state) => {
+      const filters = { ...state.filters, ...newFilters }
+      // Clean up empty/undefined values
+      Object.keys(filters).forEach((key) => {
+        const k = key as keyof Filters
+        if (filters[k] === undefined || filters[k] === '') {
+          delete filters[k]
+        }
+      })
+      return { filters }
+    })
   },
   resetFilters: () => set({ filters: {} }),
 
