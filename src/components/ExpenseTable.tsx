@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { getCategoryBadgeClass } from '@/lib/categories'
@@ -48,19 +48,35 @@ export default function ExpenseTable() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState(filters.search || '')
+
+  // 1. Reactive: Fetch expenses whenever filters change
+  useEffect(() => {
+    loadExpenses()
+  }, [filters, loadExpenses])
+
+  // 2. Reactive: Sync local search term with global filter state (e.g. if cleared via Reset All)
+  useEffect(() => {
+    if (filters.search !== searchTerm) {
+      setSearchTerm(filters.search || '')
+    }
+  }, [filters.search])
+
+  // 3. Debounced Search: Update global filters after typing stops
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchTerm !== (filters.search || '')) {
+        setFilters({ search: searchTerm, page: 1 })
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm, filters.search, setFilters])
 
   const currentPage = filters.page || 1
   const totalPages = Math.max(1, Math.ceil(totalCount / Math.max(pageSize, 1)))
 
-  const handleSearch = () => {
-    setFilters({ search: searchTerm || undefined, page: 1 })
-    setTimeout(() => loadExpenses(), 0)
-  }
-
   const handlePageChange = (page: number) => {
     setFilters({ page })
-    setTimeout(() => loadExpenses(), 0)
   }
 
   const handleDelete = async (id: number) => {
@@ -84,25 +100,23 @@ export default function ExpenseTable() {
         {/* Search */}
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-          <input
-            type="text"
-            placeholder="Search expenses..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-surface-800
-              border border-surface-200 dark:border-surface-700
-              text-sm text-surface-900 dark:text-surface-100
-              placeholder:text-surface-400
-              focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
-              transition-all"
-          />
+            <input
+              type="text"
+              placeholder="Search expenses..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-surface-800
+                border border-surface-200 dark:border-surface-700
+                text-sm text-surface-900 dark:text-surface-100
+                placeholder:text-surface-400
+                focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
+                transition-all"
+            />
           {searchTerm && (
             <button
               onClick={() => {
                 setSearchTerm('')
                 setFilters({ search: undefined })
-                setTimeout(() => loadExpenses(), 0)
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-surface-100 dark:hover:bg-surface-700 rounded"
             >
@@ -178,7 +192,6 @@ export default function ExpenseTable() {
               onClick={() => {
                 resetFilters()
                 setSearchTerm('')
-                setTimeout(() => loadExpenses(), 0)
               }}
               className="flex items-center gap-1.5 text-xs font-medium text-surface-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
             >
@@ -198,8 +211,7 @@ export default function ExpenseTable() {
                   type="date"
                   value={filters.date_from || ''}
                   onChange={(e) => {
-                    setFilters({ date_from: e.target.value || undefined, page: 1 })
-                    setTimeout(() => loadExpenses(), 0)
+                    setFilters({ date_from: e.target.value, page: 1 })
                   }}
                   className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                 />
@@ -217,8 +229,7 @@ export default function ExpenseTable() {
                   type="date"
                   value={filters.date_to || ''}
                   onChange={(e) => {
-                    setFilters({ date_to: e.target.value || undefined, page: 1 })
-                    setTimeout(() => loadExpenses(), 0)
+                    setFilters({ date_to: e.target.value, page: 1 })
                   }}
                   className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                 />
@@ -238,8 +249,7 @@ export default function ExpenseTable() {
                   placeholder="All Branches"
                   value={filters.branch || ''}
                   onChange={(e) => {
-                    setFilters({ branch: e.target.value || undefined, page: 1 })
-                    setTimeout(() => loadExpenses(), 0)
+                    setFilters({ branch: e.target.value, page: 1 })
                   }}
                   className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                 />
@@ -264,8 +274,7 @@ export default function ExpenseTable() {
                   placeholder="All Categories"
                   value={filters.category || ''}
                   onChange={(e) => {
-                    setFilters({ category: e.target.value || undefined, page: 1 })
-                    setTimeout(() => loadExpenses(), 0)
+                    setFilters({ category: e.target.value, page: 1 })
                   }}
                   className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                 />
