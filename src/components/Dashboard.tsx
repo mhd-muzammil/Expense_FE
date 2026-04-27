@@ -15,12 +15,31 @@ import {
   Check,
   Plus,
   ChevronDown,
+  Utensils,
+  Car,
+  ShoppingBag,
+  Zap,
+  Package,
+  MoreHorizontal,
+  CreditCard,
+  MapPin,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   LineChart, Line, XAxis, YAxis, CartesianGrid, Legend,
   BarChart, Bar, Sector,
 } from 'recharts'
+
+function CategoryIcon({ category, className }: { category: string, className?: string }) {
+  const cat = category.toLowerCase()
+  if (cat.includes('food') || cat.includes('snack')) return <Utensils className={className} />
+  if (cat.includes('travel') || cat.includes('petrol') || cat.includes('fuel')) return <Car className={className} />
+  if (cat.includes('shop') || cat.includes('bill')) return <ShoppingBag className={className} />
+  if (cat.includes('elect') || cat.includes('rent') || cat.includes('utility')) return <Zap className={className} />
+  if (cat.includes('salary') || cat.includes('income')) return <CreditCard className={className} />
+  if (cat.includes('misc') || cat.includes('other')) return <MoreHorizontal className={className} />
+  return <Package className={className} />
+}
 
 function SkeletonCard() {
   return (
@@ -101,11 +120,13 @@ export default function Dashboard() {
   // Prepare chart data with extra safety
   const categoryData = useMemo(() => {
     if (!dashboard || !dashboard.category_breakdown) return []
-    return dashboard.category_breakdown.map((item) => ({
-      name: item.category || 'Unknown',
-      value: Math.max(0, parseFloat(item.total_debit) || 0),
-      credit: Math.max(0, parseFloat(item.total_credit) || 0),
-    }))
+    return dashboard.category_breakdown
+      .map((item) => ({
+        name: item.category || 'Unknown',
+        value: Math.max(0, parseFloat(item.total_debit) || 0),
+        credit: Math.max(0, parseFloat(item.total_credit) || 0),
+      }))
+      .sort((a, b) => b.value - a.value)
   }, [dashboard])
 
   const monthlyData = useMemo(() => {
@@ -449,94 +470,80 @@ export default function Dashboard() {
           <SkeletonChart />
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 stagger-children">
-          {/* Pie Chart — Category Breakdown */}
-          <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold text-surface-900 dark:text-white">
-                Expenses by Category
-              </h3>
-              <div className="px-2 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 stagger-children items-stretch">
+          {/* Category Breakdown — Premium Horizontal List */}
+          <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 min-h-[420px] flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-base font-semibold text-surface-900 dark:text-white">
+                  Expenses by Category
+                </h3>
+                <p className="text-xs text-surface-400 mt-0.5">Distribution of total spending</p>
+              </div>
+              <div className="px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-[10px] font-bold uppercase tracking-wider border border-red-100 dark:border-red-900/30">
                 Total: {formatCurrency(totalDebits)}
               </div>
             </div>
-            <div className="relative">
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    {...({
-                      activeIndex,
-                      activeShape: renderActiveShape,
-                      data: categoryData,
-                      dataKey: "value",
-                      nameKey: "name",
-                      cx: "50%",
-                      cy: "50%",
-                      outerRadius: 80,
-                      innerRadius: 58,
-                      paddingAngle: 4,
-                      strokeWidth: 0,
-                      onMouseEnter: onPieEnter,
-                      onMouseLeave: onPieLeave,
-                    } as any)}
-                  >
-                    {categoryData.map((_, index) => (
-                      <Cell 
-                        key={index} 
-                        fill={getCategoryHex(categoryData[index]?.name, index)}
-                        className="transition-all duration-300 outline-none"
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => formatCurrency(Number(value ?? 0))}
-                    contentStyle={{
-                      borderRadius: '12px',
-                      border: 'none',
-                      boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
-                      fontSize: '13px',
-                      padding: '8px 12px',
-                    }}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    align="center"
-                    iconType="circle"
-                    iconSize={8}
-                    wrapperStyle={{ 
-                      fontSize: '12px',
-                      paddingTop: '20px'
-                    }}
-                    formatter={(value, entry: any) => {
-                      const total = categoryData.reduce((acc, item) => acc + item.value, 0)
-                      const item = categoryData.find(d => d.name === value)
-                      const percent = total > 0 ? ((item?.value || 0) / total * 100).toFixed(0) : 0
-                      return (
-                        <span className="text-surface-600 dark:text-surface-400 font-medium">
-                          {value} <span className="ml-1 text-surface-400 dark:text-surface-500 text-[10px]">({percent}%)</span>
-                        </span>
-                      )
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              
-              {/* Central Label (Manual Overlay for better control) */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[calc(50%+18px)] text-center pointer-events-none">
-                <p className="text-[10px] font-bold text-surface-400 dark:text-surface-500 uppercase tracking-tighter">Spent</p>
-                <p className="text-sm font-bold text-surface-900 dark:text-white">
-                  {categoryData[activeIndex ?? -1]?.name ? (
-                    formatCurrency(categoryData[activeIndex ?? -1].value)
-                  ) : (
-                    formatCurrency(totalDebits)
-                  )}
-                </p>
-              </div>
+            
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-5 max-h-[300px]">
+              {categoryData.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center py-12">
+                  <div className="w-12 h-12 rounded-full bg-surface-50 dark:bg-surface-900 flex items-center justify-center mb-3">
+                    <Package className="w-6 h-6 text-surface-300" />
+                  </div>
+                  <p className="text-sm text-surface-400">No expense data available</p>
+                </div>
+              ) : (
+                categoryData.map((item, index) => {
+                  const percentage = totalDebits > 0 ? (item.value / totalDebits) * 100 : 0
+                  const color = getCategoryHex(item.name, index)
+                  
+                  return (
+                    <div key={item.name} className="group relative">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm"
+                            style={{ backgroundColor: `${color}15`, color: color }}
+                          >
+                            <CategoryIcon category={item.name} className="w-4.5 h-4.5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-surface-700 dark:text-surface-200">{item.name}</p>
+                            <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase tracking-wider">
+                              {percentage.toFixed(1)}% of total
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-surface-900 dark:text-white">{formatCurrency(item.value)}</p>
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                            <span className="text-[10px] text-surface-400 font-medium">Category</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Progress Bar Container */}
+                      <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(0,0,0,0.1)]"
+                          style={{ 
+                            width: `${percentage}%`, 
+                            backgroundColor: color,
+                            boxShadow: `0 0 12px ${color}40`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
 
           {/* Line Chart — Monthly Trend */}
-          <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700">
+          <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 min-h-[420px] flex flex-col">
             <h3 className="text-base font-semibold text-surface-900 dark:text-white mb-4">
               Monthly Trend
             </h3>
@@ -585,44 +592,69 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
 
-          {/* Bar Chart — Branch-wise */}
-          <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700">
-            <h3 className="text-base font-semibold text-surface-900 dark:text-white mb-4">
-              Branch-wise Expenses
-            </h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={branchData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 10, fill: '#94a3b8' }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={0}
-                  angle={-20}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v) => `${CURRENCY_SYMBOL}${(v / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  formatter={(value) => formatCurrency(Number(value ?? 0))}
-                  contentStyle={{
-                    borderRadius: '12px',
-                    border: 'none',
-                    boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
-                    fontSize: '13px',
-                  }}
-                />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '12px' }} />
-                <Bar dataKey="Credits" fill="#10b981" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="Debits" fill="#ef4444" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          {/* Branch-wise Breakdown — Premium Horizontal List */}
+          <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 min-h-[420px] flex flex-col">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-base font-semibold text-surface-900 dark:text-white">
+                  Branch-wise Expenses
+                </h3>
+                <p className="text-xs text-surface-400 mt-0.5">Spending breakdown by location</p>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-5 max-h-[300px]">
+              {branchData.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center py-12">
+                  <div className="w-12 h-12 rounded-full bg-surface-50 dark:bg-surface-900 flex items-center justify-center mb-3">
+                    <MapPin className="w-6 h-6 text-surface-300" />
+                  </div>
+                  <p className="text-sm text-surface-400">No branch data available</p>
+                </div>
+              ) : (
+                branchData.map((item, index) => {
+                  const percentage = totalDebits > 0 ? (item.Debits / totalDebits) * 100 : 0
+                  // Use a distinct color for branches
+                  const color = `hsl(${200 + (index * 40)}, 70%, 50%)`
+                  
+                  return (
+                    <div key={item.name} className="group relative">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm"
+                            style={{ backgroundColor: `${color}15`, color: color }}
+                          >
+                            <MapPin className="w-4.5 h-4.5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-surface-700 dark:text-surface-200">{item.name}</p>
+                            <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase tracking-wider">
+                              {percentage.toFixed(1)}% of total
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-surface-900 dark:text-white">{formatCurrency(item.Debits)}</p>
+                        </div>
+                      </div>
+                      
+                      {/* Progress Bar Container */}
+                      <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full rounded-full transition-all duration-1000 ease-out"
+                          style={{ 
+                            width: `${percentage}%`, 
+                            backgroundColor: color,
+                            boxShadow: `0 0 12px ${color}40`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
         </div>
       )}
