@@ -128,6 +128,11 @@ export interface DashboardData {
     branch: string
     total_credit: string
     total_debit: string
+    category_breakdown: Array<{
+      category: string
+      total_credit: string
+      total_debit: string
+    }>
   }>
 }
 

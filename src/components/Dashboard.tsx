@@ -144,6 +144,10 @@ export default function Dashboard() {
       name: item.branch || 'Unknown',
       Credits: Math.max(0, parseFloat(item.total_credit) || 0),
       Debits: Math.max(0, parseFloat(item.total_debit) || 0),
+      categories: item.category_breakdown?.map(c => ({
+        name: c.category,
+        value: Math.max(0, parseFloat(c.total_debit) || 0)
+      })) || []
     }))
   }, [dashboard])
 
@@ -464,13 +468,12 @@ export default function Dashboard() {
 
       {/* Charts */}
       {loadingDashboard ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 stagger-children">
-          <SkeletonChart />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger-children">
           <SkeletonChart />
           <SkeletonChart />
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 stagger-children items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 stagger-children items-stretch">
           {/* Category Breakdown — Premium Horizontal List */}
           <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 min-h-[420px] flex flex-col">
             <div className="flex items-center justify-between mb-6">
@@ -541,7 +544,6 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-
           {/* Line Chart — Monthly Trend */}
           <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 min-h-[420px] flex flex-col">
             <h3 className="text-base font-semibold text-surface-900 dark:text-white mb-4">
@@ -591,70 +593,101 @@ export default function Dashboard() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      )}
 
-          {/* Branch-wise Breakdown — Premium Horizontal List */}
-          <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 min-h-[420px] flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-base font-semibold text-surface-900 dark:text-white">
-                  Branch-wise Expenses
-                </h3>
-                <p className="text-xs text-surface-400 mt-0.5">Spending breakdown by location</p>
+      {/* Branch Detailed Breakdown Section */}
+      {!loadingDashboard && branchData.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+                <MapPin className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               </div>
+              <h3 className="text-lg font-bold text-surface-900 dark:text-white">Branch-wise Detailed Breakdown</h3>
             </div>
-            
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-5 max-h-[300px]">
-              {branchData.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center py-12">
-                  <div className="w-12 h-12 rounded-full bg-surface-50 dark:bg-surface-900 flex items-center justify-center mb-3">
-                    <MapPin className="w-6 h-6 text-surface-300" />
-                  </div>
-                  <p className="text-sm text-surface-400">No branch data available</p>
-                </div>
-              ) : (
-                branchData.map((item, index) => {
-                  const percentage = totalDebits > 0 ? (item.Debits / totalDebits) * 100 : 0
-                  // Use a distinct color for branches
-                  const color = `hsl(${200 + (index * 40)}, 70%, 50%)`
-                  
-                  return (
-                    <div key={item.name} className="group relative">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-110 shadow-sm"
-                            style={{ backgroundColor: `${color}15`, color: color }}
-                          >
-                            <MapPin className="w-4.5 h-4.5" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-surface-700 dark:text-surface-200">{item.name}</p>
-                            <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase tracking-wider">
-                              {percentage.toFixed(1)}% of total
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-surface-900 dark:text-white">{formatCurrency(item.Debits)}</p>
-                        </div>
-                      </div>
-                      
-                      {/* Progress Bar Container */}
-                      <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full rounded-full transition-all duration-1000 ease-out"
-                          style={{ 
-                            width: `${percentage}%`, 
-                            backgroundColor: color,
-                            boxShadow: `0 0 12px ${color}40`
-                          }}
-                        />
-                      </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 stagger-children">
+            {branchData.map((branch, bIdx) => (
+              <div key={branch.name} className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 flex flex-col hover:shadow-lg transition-all duration-300">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                      <MapPin className="w-5 h-5" />
                     </div>
-                  )
-                })
-              )}
-            </div>
+                    <div>
+                      <h4 className="text-base font-bold text-surface-900 dark:text-white">{branch.name}</h4>
+                      <p className="text-[10px] text-surface-400 font-medium uppercase tracking-wider">Branch Summary</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleFilterChange('branch', branch.name)}
+                    className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+                    title="Focus on this branch"
+                  >
+                    <ArrowUpRight className="w-4 h-4 text-surface-400" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <div className="p-3 rounded-xl bg-emerald-50/30 dark:bg-emerald-900/10 border border-emerald-100/30 dark:border-emerald-900/20">
+                    <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Credits</p>
+                    <p className="text-sm font-bold text-surface-900 dark:text-white">{formatCurrency(branch.Credits)}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-red-50/30 dark:bg-red-900/10 border border-red-100/30 dark:border-red-900/20">
+                    <p className="text-[9px] font-bold text-red-600 uppercase tracking-widest mb-1">Debits</p>
+                    <p className="text-sm font-bold text-surface-900 dark:text-white">{formatCurrency(branch.Debits)}</p>
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Expenses by Category</span>
+                    <span className="text-[10px] font-bold text-red-600 dark:text-red-400">-{formatCurrency(branch.Debits)}</span>
+                  </div>
+
+                  <div className="space-y-4 pr-1 custom-scrollbar max-h-[200px] overflow-y-auto">
+                    {branch.categories.length === 0 ? (
+                      <p className="text-xs text-surface-400 text-center py-4 italic">No expenses recorded</p>
+                    ) : (
+                      branch.categories.map((cat, cIdx) => {
+                        const percentage = branch.Debits > 0 ? (cat.value / branch.Debits) * 100 : 0
+                        const color = getCategoryHex(cat.name, cIdx)
+                        return (
+                          <div key={cat.name} className="group">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+                                <span className="text-xs font-semibold text-surface-700 dark:text-surface-300">{cat.name}</span>
+                              </div>
+                              <span className="text-xs font-bold text-surface-900 dark:text-white">{formatCurrency(cat.value)}</span>
+                            </div>
+                            <div className="h-1 w-full bg-surface-100 dark:bg-surface-900 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full rounded-full transition-all duration-1000"
+                                style={{ 
+                                  width: `${percentage}%`, 
+                                  backgroundColor: color,
+                                  boxShadow: `0 0 8px ${color}30`
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-surface-100 dark:border-surface-700 flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Net Balance</span>
+                  <span className={`text-sm font-bold ${branch.Credits - branch.Debits >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(branch.Credits - branch.Debits)}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
