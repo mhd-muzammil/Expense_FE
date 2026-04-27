@@ -335,7 +335,7 @@ export default function Dashboard() {
               </div>
 
               <div className="p-4 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-200 dark:border-surface-700">
-                <p className="text-[10px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">Monthly Balance</p>
+                <p className="text-[10px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">Net Balance</p>
                 <p className={`text-xl font-bold ${(parseFloat(selectedMonthData?.credits || '0') - parseFloat(selectedMonthData?.debits || '0')) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                   {formatCurrency(parseFloat(selectedMonthData?.credits || '0') - parseFloat(selectedMonthData?.debits || '0'))}
                 </p>
