@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
-import { setPaymentModeBalance } from '@/lib/api'
+import { setPaymentModeBalance, fetchDashboard } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -23,6 +23,8 @@ import {
   MoreHorizontal,
   CreditCard,
   MapPin,
+  Calendar,
+  Filter,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -56,6 +58,274 @@ function SkeletonChart() {
     <div className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm">
       <div className="skeleton h-5 w-40 mb-4" />
       <div className="skeleton h-[250px] w-full" />
+    </div>
+  )
+}
+
+function BranchCard({ initialData, onFocus }: { initialData: any, onFocus: (name: string) => void }) {
+  const [localFilters, setLocalFilters] = useState({
+    date_from: '',
+    date_to: '',
+  })
+  const [activePreset, setActivePreset] = useState('all')
+  const [showCustom, setShowCustom] = useState(false)
+  const [data, setData] = useState(initialData)
+  const [loading, setLoading] = useState(false)
+
+  const handleLocalFilterChange = (key: string, value: string) => {
+    setLocalFilters(prev => ({ ...prev, [key]: value }))
+    setActivePreset('custom')
+  }
+
+  const applyPreset = (preset: string) => {
+    setActivePreset(preset)
+    const now = new Date()
+    let from = ''
+    let to = now.toISOString().split('T')[0]
+
+    if (preset === 'all') {
+      setLocalFilters({ date_from: '', date_to: '' })
+      setShowCustom(false)
+      return
+    }
+
+    if (preset === 'today') {
+      from = to
+    } else if (preset === '7d') {
+      const d = new Date()
+      d.setDate(d.getDate() - 7)
+      from = d.toISOString().split('T')[0]
+    } else if (preset === '30d') {
+      const d = new Date()
+      d.setDate(d.getDate() - 30)
+      from = d.toISOString().split('T')[0]
+    }
+
+    setLocalFilters({ date_from: from, date_to: to })
+    setShowCustom(false)
+  }
+
+  const isFiltered = localFilters.date_from || localFilters.date_to
+
+  const updateData = async () => {
+    if (!isFiltered) {
+      setData(initialData)
+      return
+    }
+    setLoading(true)
+    try {
+      const result = await fetchDashboard({ 
+        branch: initialData.name,
+        date_from: localFilters.date_from || undefined,
+        date_to: localFilters.date_to || undefined
+      })
+      const branchResult = result.branch_breakdown.find((b: any) => b.branch === initialData.name)
+      if (branchResult) {
+        setData({
+          name: branchResult.branch,
+          Credits: Math.max(0, parseFloat(branchResult.total_credit) || 0),
+          Debits: Math.max(0, parseFloat(branchResult.total_debit) || 0),
+          categories: branchResult.category_breakdown?.map((c: any) => ({
+            name: c.category,
+            value: Math.max(0, parseFloat(c.total_debit) || 0)
+          })) || []
+        })
+      } else {
+        setData({
+          name: initialData.name,
+          Credits: 0,
+          Debits: 0,
+          categories: []
+        })
+      }
+    } catch (err) {
+      console.error('Failed to update branch card:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    updateData()
+  }, [localFilters])
+
+  useEffect(() => {
+    if (!isFiltered) {
+      setData(initialData)
+    }
+  }, [initialData, isFiltered])
+
+  return (
+    <div className={`rounded-3xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 flex flex-col hover:shadow-xl transition-all duration-500 relative group overflow-hidden ${loading ? 'opacity-60' : ''}`}>
+      {/* Background Decorative Gradient */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full -translate-y-12 translate-x-12 blur-3xl group-hover:bg-indigo-500/10 transition-all duration-500" />
+      
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/40 dark:bg-surface-800/40 z-20 backdrop-blur-[1px]">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-[10px] font-bold text-primary-600 animate-pulse">Syncing...</span>
+          </div>
+        </div>
+      )}
+      
+      <div className="flex flex-col gap-5 mb-6 relative z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-surface-900 dark:text-white leading-tight">{data.name}</h4>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${isFiltered ? 'bg-emerald-500 animate-pulse' : 'bg-surface-300 dark:bg-surface-600'}`} />
+                <p className="text-[10px] text-surface-400 font-bold uppercase tracking-widest">
+                  {isFiltered ? 'Local Filter Active' : 'Global Context'}
+                </p>
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={() => onFocus(data.name)}
+            className="p-2.5 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-700 transition-all group/btn"
+            title="Filter entire dashboard to this branch"
+          >
+            <Filter className="w-4 h-4 text-surface-400 group-hover/btn:text-primary-500 group-hover/btn:scale-110 transition-all" />
+          </button>
+        </div>
+
+        {/* Advanced Filter UI */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-1 p-1 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700/50">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'today', label: 'Today' },
+              { id: '7d', label: '7D' },
+              { id: '30d', label: '30D' },
+            ].map(p => (
+              <button
+                key={p.id}
+                onClick={() => applyPreset(p.id)}
+                className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                  activePreset === p.id 
+                    ? 'bg-white dark:bg-surface-800 text-primary-600 shadow-sm border border-surface-100 dark:border-surface-700' 
+                    : 'text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowCustom(!showCustom)}
+              className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+                showCustom || activePreset === 'custom'
+                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600' 
+                  : 'text-surface-400 hover:text-surface-600'
+              }`}
+            >
+              Custom
+            </button>
+          </div>
+
+          {showCustom && (
+            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex-1 relative">
+                <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-surface-400" />
+                <input
+                  type="date"
+                  value={localFilters.date_from}
+                  onChange={(e) => handleLocalFilterChange('date_from', e.target.value)}
+                  className="w-full pl-7 pr-2 py-1.5 text-[10px] rounded-lg bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                />
+              </div>
+              <div className="flex-1 relative">
+                <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-surface-400" />
+                <input
+                  type="date"
+                  value={localFilters.date_to}
+                  onChange={(e) => handleLocalFilterChange('date_to', e.target.value)}
+                  className="w-full pl-7 pr-2 py-1.5 text-[10px] rounded-lg bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-6 relative z-10">
+        <div className="group/stat relative p-4 rounded-2xl bg-emerald-50/20 dark:bg-emerald-900/5 border border-emerald-100/20 dark:border-emerald-900/10 hover:border-emerald-500/30 transition-all">
+          <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-1.5">Credits</p>
+          <p className="text-base font-bold text-surface-900 dark:text-white">{formatCurrency(data.Credits)}</p>
+          <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-emerald-500/20 group-hover/stat:bg-emerald-500 transition-all" />
+        </div>
+        <div className="group/stat relative p-4 rounded-2xl bg-red-50/20 dark:bg-red-900/5 border border-red-100/20 dark:border-red-900/10 hover:border-red-500/30 transition-all">
+          <p className="text-[9px] font-bold text-red-600 uppercase tracking-widest mb-1.5">Debits</p>
+          <p className="text-base font-bold text-surface-900 dark:text-white">{formatCurrency(data.Debits)}</p>
+          <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500/20 group-hover/stat:bg-red-500 transition-all" />
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-4 relative z-10">
+        <div className="flex items-center justify-between border-b border-surface-50 dark:border-surface-700/50 pb-2">
+          <span className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Category Distribution</span>
+          <span className="text-[10px] font-black text-red-600 dark:text-red-400 px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-900/20">
+            -{formatCurrency(data.Debits)}
+          </span>
+        </div>
+
+        <div className="space-y-4 pr-1 custom-scrollbar max-h-[180px] overflow-y-auto">
+          {data.categories.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="w-10 h-10 rounded-full bg-surface-50 dark:bg-surface-900 flex items-center justify-center mb-2">
+                <Package className="w-5 h-5 text-surface-200" />
+              </div>
+              <p className="text-[10px] text-surface-400 font-bold uppercase tracking-tighter">No data for selected period</p>
+            </div>
+          ) : (
+            data.categories.map((cat: any, cIdx: number) => {
+              const percentage = data.Debits > 0 ? (cat.value / data.Debits) * 100 : 0
+              const color = getCategoryHex(cat.name, cIdx)
+              return (
+                <div key={cat.name} className="group/item">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: color }} />
+                      <span className="text-xs font-bold text-surface-700 dark:text-surface-300 group-hover/item:text-surface-900 dark:group-hover/item:text-white transition-colors">{cat.name}</span>
+                    </div>
+                    <span className="text-xs font-black text-surface-900 dark:text-white">{formatCurrency(cat.value)}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900/80 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-1000 ease-out"
+                      style={{ 
+                        width: `${percentage}%`, 
+                        backgroundColor: color,
+                        boxShadow: `0 0 10px ${color}40`
+                      }}
+                    />
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      <div className="mt-6 pt-5 border-t border-surface-100 dark:border-surface-700 flex items-center justify-between relative z-10">
+        <div className="flex flex-col">
+          <span className="text-[9px] font-bold text-surface-400 uppercase tracking-widest">Net Balance</span>
+          <span className={`text-lg font-black tracking-tight ${data.Credits - data.Debits >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            {formatCurrency(data.Credits - data.Debits)}
+          </span>
+        </div>
+        <div className={`p-2 rounded-xl ${data.Credits - data.Debits >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+          {data.Credits - data.Debits >= 0 ? (
+            <TrendingUp className="w-5 h-5 text-emerald-600" />
+          ) : (
+            <TrendingDown className="w-5 h-5 text-red-600" />
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -609,84 +879,12 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 stagger-children">
-            {branchData.map((branch, bIdx) => (
-              <div key={branch.name} className="rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 flex flex-col hover:shadow-lg transition-all duration-300">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                      <MapPin className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-base font-bold text-surface-900 dark:text-white">{branch.name}</h4>
-                      <p className="text-[10px] text-surface-400 font-medium uppercase tracking-wider">Branch Summary</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => handleFilterChange('branch', branch.name)}
-                    className="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
-                    title="Focus on this branch"
-                  >
-                    <ArrowUpRight className="w-4 h-4 text-surface-400" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                  <div className="p-3 rounded-xl bg-emerald-50/30 dark:bg-emerald-900/10 border border-emerald-100/30 dark:border-emerald-900/20">
-                    <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Credits</p>
-                    <p className="text-sm font-bold text-surface-900 dark:text-white">{formatCurrency(branch.Credits)}</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-red-50/30 dark:bg-red-900/10 border border-red-100/30 dark:border-red-900/20">
-                    <p className="text-[9px] font-bold text-red-600 uppercase tracking-widest mb-1">Debits</p>
-                    <p className="text-sm font-bold text-surface-900 dark:text-white">{formatCurrency(branch.Debits)}</p>
-                  </div>
-                </div>
-
-                <div className="flex-1 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Expenses by Category</span>
-                    <span className="text-[10px] font-bold text-red-600 dark:text-red-400">-{formatCurrency(branch.Debits)}</span>
-                  </div>
-
-                  <div className="space-y-4 pr-1 custom-scrollbar max-h-[200px] overflow-y-auto">
-                    {branch.categories.length === 0 ? (
-                      <p className="text-xs text-surface-400 text-center py-4 italic">No expenses recorded</p>
-                    ) : (
-                      branch.categories.map((cat, cIdx) => {
-                        const percentage = branch.Debits > 0 ? (cat.value / branch.Debits) * 100 : 0
-                        const color = getCategoryHex(cat.name, cIdx)
-                        return (
-                          <div key={cat.name} className="group">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                                <span className="text-xs font-semibold text-surface-700 dark:text-surface-300">{cat.name}</span>
-                              </div>
-                              <span className="text-xs font-bold text-surface-900 dark:text-white">{formatCurrency(cat.value)}</span>
-                            </div>
-                            <div className="h-1 w-full bg-surface-100 dark:bg-surface-900 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full rounded-full transition-all duration-1000"
-                                style={{ 
-                                  width: `${percentage}%`, 
-                                  backgroundColor: color,
-                                  boxShadow: `0 0 8px ${color}30`
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-surface-100 dark:border-surface-700 flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Net Balance</span>
-                  <span className={`text-sm font-bold ${branch.Credits - branch.Debits >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatCurrency(branch.Credits - branch.Debits)}
-                  </span>
-                </div>
-              </div>
+            {branchData.map((branch) => (
+              <BranchCard 
+                key={branch.name} 
+                initialData={branch} 
+                onFocus={(name) => handleFilterChange('branch', name)} 
+              />
             ))}
           </div>
         </div>
