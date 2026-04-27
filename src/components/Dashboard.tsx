@@ -266,7 +266,7 @@ export default function Dashboard() {
               <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
                 <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <span className="text-sm font-medium text-surface-500 dark:text-surface-400">Total Credits</span>
+              <span className="text-sm font-medium text-surface-500 dark:text-surface-400"> Overall Total Credits</span>
             </div>
             <p className="text-3xl font-bold text-surface-900 dark:text-white">{formatCurrency(totalCredits)}</p>
             <div className="flex items-center gap-1 mt-1">
@@ -282,7 +282,7 @@ export default function Dashboard() {
               <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
                 <TrendingDown className="w-4 h-4 text-red-600 dark:text-red-400" />
               </div>
-              <span className="text-sm font-medium text-surface-500 dark:text-surface-400">Total Debits</span>
+              <span className="text-sm font-medium text-surface-500 dark:text-surface-400">Overall Total Debits</span>
             </div>
             <p className="text-3xl font-bold text-surface-900 dark:text-white">{formatCurrency(totalDebits)}</p>
             <div className="flex items-center gap-1 mt-1">
@@ -321,21 +321,21 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 rounded-xl bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100/50 dark:border-emerald-900/20">
-                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Total Credits</p>
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1"> Month Total Credits</p>
                 <p className="text-xl font-bold text-surface-900 dark:text-white">
                   {formatCurrency(parseFloat(selectedMonthData?.credits || '0'))}
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-red-50/50 dark:bg-red-900/10 border border-red-100/50 dark:border-red-900/20">
-                <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Total Debits</p>
+                <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1"> Month Total Debits</p>
                 <p className="text-xl font-bold text-surface-900 dark:text-white">
                   {formatCurrency(parseFloat(selectedMonthData?.debits || '0'))}
                 </p>
               </div>
 
               <div className="p-4 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-200 dark:border-surface-700">
-                <p className="text-[10px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">Net Balance</p>
+                <p className="text-[10px] font-bold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-1">Month Net Balance</p>
                 <p className={`text-xl font-bold ${(parseFloat(selectedMonthData?.credits || '0') - parseFloat(selectedMonthData?.debits || '0')) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                   {formatCurrency(parseFloat(selectedMonthData?.credits || '0') - parseFloat(selectedMonthData?.debits || '0'))}
                 </p>
