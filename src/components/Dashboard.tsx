@@ -464,9 +464,9 @@ export default function Dashboard() {
     }
   }
 
-  const totalBalance = dashboard ? parseFloat(dashboard.total_balance) || 0 : 0
   const totalCredits = dashboard ? parseFloat(dashboard.total_credits) || 0 : 0
   const totalDebits = dashboard ? parseFloat(dashboard.total_debits) || 0 : 0
+  const totalBalance = totalCredits - totalDebits
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -601,7 +601,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium text-white/80">Total Balance</span>
               </div>
               <p className="text-3xl font-bold">{formatCurrency(totalBalance)}</p>
-              <p className="text-sm text-white/60 mt-1">Company-wide balance</p>
+              <p className="text-sm text-white/60 mt-1">For selected period</p>
             </div>
           </div>
 
