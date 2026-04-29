@@ -3,7 +3,7 @@ import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
-import { setPaymentModeBalance, fetchDashboard } from '@/lib/api'
+import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -12,6 +12,8 @@ import {
   ArrowDownRight,
   Landmark,
   Pencil,
+  Trash2,
+  X,
   Check,
   Plus,
   ChevronDown,
@@ -332,6 +334,22 @@ function BranchCard({ initialData, onFocus }: { initialData: any, onFocus: (name
 
 const PAYMENT_MODES = ['Cash', 'Bank Transfer', 'GPay', 'PhonePe', 'UPI', 'Cheque', 'Other']
 
+// Generate financial year options (current + last 5 years)
+function getFinancialYears(): { label: string; value: string }[] {
+  const now = new Date()
+  const currentMonth = now.getMonth() // 0-indexed
+  const currentYear = now.getFullYear()
+  // If we're in Jan-Mar, current FY started last year
+  const fyStartYear = currentMonth >= 3 ? currentYear : currentYear - 1
+  const years: { label: string; value: string }[] = []
+  for (let i = 0; i < 6; i++) {
+    const start = fyStartYear - i
+    const end = start + 1
+    years.push({ label: `FY ${start}-${end}`, value: `${start}-${end}` })
+  }
+  return years
+}
+
 export default function Dashboard() {
   const { dashboard, loadingDashboard, branches, categories, filters, setFilters, loadDashboard, loadExpenses, paymentModeBalances, loadPaymentModeBalances } = useExpenseStore()
   const [editingMode, setEditingMode] = useState<string | null>(null)
@@ -342,6 +360,35 @@ export default function Dashboard() {
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined)
   const [activePreset, setActivePreset] = useState('all')
   const [showCustom, setShowCustom] = useState(false)
+  const [deletingMode, setDeletingMode] = useState<string | null>(null)
+  const [pmFy, setPmFy] = useState('')
+  const [pmLoading, setPmLoading] = useState(false)
+  const [localPmBalances, setLocalPmBalances] = useState(paymentModeBalances)
+
+  const financialYears = useMemo(() => getFinancialYears(), [])
+
+  // Reload payment mode balances when FY changes
+  useEffect(() => {
+    const loadFiltered = async () => {
+      setPmLoading(true)
+      try {
+        const data = await fetchPaymentModeBalances(pmFy ? { fy: pmFy } : undefined)
+        setLocalPmBalances(data)
+      } catch (err) {
+        console.error('Failed to load payment mode balances:', err)
+      } finally {
+        setPmLoading(false)
+      }
+    }
+    loadFiltered()
+  }, [pmFy])
+
+  // Sync with global store when no FY filter
+  useEffect(() => {
+    if (!pmFy) {
+      setLocalPmBalances(paymentModeBalances)
+    }
+  }, [paymentModeBalances, pmFy])
 
   const onPieEnter = (_: any, index: number) => {
     setActiveIndex(index)
@@ -643,19 +690,39 @@ export default function Dashboard() {
 
       {/* Payment Mode Balances */}
       <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 p-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-2">
-            <Landmark className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-            <h3 className="text-base font-semibold text-surface-900 dark:text-white">Payment Mode Balances</h3>
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/20">
+              <Landmark className="w-4.5 h-4.5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-surface-900 dark:text-white">Payment Mode Balances</h3>
+              <p className="text-[10px] text-surface-400 font-medium">
+                {pmFy ? `Showing ${pmFy}` : 'All time'}
+              </p>
+            </div>
           </div>
-          <button
-            onClick={() => setShowAddMode(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium
-              bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400
-              hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-all"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add Mode
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Financial Year Filter */}
+            <select
+              value={pmFy}
+              onChange={(e) => setPmFy(e.target.value)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/30 cursor-pointer"
+            >
+              <option value="">All Time</option>
+              {financialYears.map(fy => (
+                <option key={fy.value} value={fy.value}>{fy.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setShowAddMode(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium
+                bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400
+                hover:bg-primary-100 dark:hover:bg-primary-900/50 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Mode
+            </button>
+          </div>
         </div>
 
         {/* Add new mode form */}
@@ -671,7 +738,7 @@ export default function Dashboard() {
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm"
               />
               <datalist id="payment-mode-suggestions">
-                {PAYMENT_MODES.filter(m => !paymentModeBalances.find(b => b.payment_mode === m)).map(m => (
+                {PAYMENT_MODES.filter(m => !localPmBalances.find(b => b.payment_mode === m)).map(m => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </datalist>
@@ -688,6 +755,7 @@ export default function Dashboard() {
                 if (newMode && newModeBalance) {
                   await setPaymentModeBalance(newMode, parseFloat(newModeBalance))
                   await loadPaymentModeBalances()
+                  setPmFy('') // reset FY to refresh
                   setShowAddMode(false)
                   setNewMode('')
                   setNewModeBalance('')
@@ -706,51 +774,160 @@ export default function Dashboard() {
           </div>
         )}
 
-        {paymentModeBalances.length === 0 ? (
+        {pmLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[1,2,3,4].map(i => (
+              <div key={i} className="rounded-xl p-5 border border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50">
+                <div className="skeleton h-4 w-24 mb-3" />
+                <div className="skeleton h-7 w-32 mb-4" />
+                <div className="skeleton h-3 w-full mb-2" />
+                <div className="skeleton h-3 w-full" />
+              </div>
+            ))}
+          </div>
+        ) : localPmBalances.length === 0 ? (
           <p className="text-sm text-surface-400 text-center py-4">No payment modes configured. Click "Add Mode" to set initial balances.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {paymentModeBalances.map((bal) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {localPmBalances.map((bal) => {
               const current = parseFloat(bal.current_balance)
               const initial = parseFloat(bal.initial_balance)
+              const credits = parseFloat(bal.total_credits || '0')
+              const debits = parseFloat(bal.total_debits || '0')
+              const maxFlow = Math.max(credits, debits, 1)
               return (
-                <div key={bal.payment_mode} className="rounded-xl p-4 border border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-surface-700 dark:text-surface-300">{bal.payment_mode}</span>
-                    <button
-                      onClick={() => { setEditingMode(bal.payment_mode); setEditValue(initial.toString()) }}
-                      className="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
-                      title="Edit initial balance"
-                    >
-                      <Pencil className="w-3 h-3 text-surface-400" />
-                    </button>
-                  </div>
-                  <p className={`text-xl font-bold ${current >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {formatCurrency(current)}
-                  </p>
-                  {editingMode === bal.payment_mode ? (
-                    <div className="flex items-center gap-1 mt-2">
-                      <input
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="flex-1 px-2 py-1 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-xs"
-                        autoFocus
-                      />
-                      <button
-                        onClick={async () => {
-                          await setPaymentModeBalance(bal.payment_mode, parseFloat(editValue))
-                          await loadPaymentModeBalances()
-                          setEditingMode(null)
-                        }}
-                        className="p-1 rounded bg-primary-500 text-white"
-                      >
-                        <Check className="w-3 h-3" />
-                      </button>
+                <div key={bal.payment_mode} className="group/card relative rounded-xl p-5 border border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50 hover:shadow-lg hover:border-primary-200 dark:hover:border-primary-800 transition-all duration-300 overflow-hidden">
+                  {/* Background decoration */}
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-primary-500/5 rounded-full -translate-y-8 translate-x-8 group-hover/card:bg-primary-500/10 transition-all duration-500" />
+                  
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-3 relative z-10">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                        <CreditCard className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+                      </div>
+                      <span className="text-sm font-bold text-surface-800 dark:text-surface-200">{bal.payment_mode}</span>
                     </div>
-                  ) : (
-                    <p className="text-xs text-surface-400 mt-1">Initial: {formatCurrency(initial)}</p>
-                  )}
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => { setEditingMode(bal.payment_mode); setEditValue(initial.toString()) }}
+                        className="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+                        title="Edit initial balance"
+                      >
+                        <Pencil className="w-3 h-3 text-surface-400" />
+                      </button>
+                      {deletingMode === bal.payment_mode ? (
+                        <div className="flex items-center gap-1 animate-in fade-in duration-200">
+                          <button
+                            onClick={async () => {
+                              await deletePaymentModeBalance(bal.payment_mode)
+                              await loadPaymentModeBalances()
+                              setDeletingMode(null)
+                              // Refresh local list
+                              const data = await fetchPaymentModeBalances(pmFy ? { fy: pmFy } : undefined)
+                              setLocalPmBalances(data)
+                            }}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500 text-white hover:bg-red-600 transition-colors"
+                            title="Confirm delete"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={() => setDeletingMode(null)}
+                            className="p-0.5 rounded hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+                            title="Cancel"
+                          >
+                            <X className="w-3 h-3 text-surface-400" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeletingMode(bal.payment_mode)}
+                          className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group/del"
+                          title="Delete payment mode"
+                        >
+                          <Trash2 className="w-3 h-3 text-surface-400 group-hover/del:text-red-500 transition-colors" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Current Balance */}
+                  <div className="mb-4 relative z-10">
+                    <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Current Balance</p>
+                    <p className={`text-2xl font-black tracking-tight ${current >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {formatCurrency(current)}
+                    </p>
+                  </div>
+
+                  {/* Credits & Debits Breakdown */}
+                  <div className="space-y-3 mb-4 relative z-10">
+                    {/* Credits */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <ArrowUpRight className="w-3 h-3 text-emerald-500" />
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Credits</span>
+                        </div>
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(credits)}</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900/80 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-emerald-500 transition-all duration-1000 ease-out"
+                          style={{ width: `${(credits / maxFlow) * 100}%`, boxShadow: '0 0 8px rgba(16,185,129,0.3)' }}
+                        />
+                      </div>
+                    </div>
+                    {/* Debits */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <ArrowDownRight className="w-3 h-3 text-red-500" />
+                          <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">Debits</span>
+                        </div>
+                        <span className="text-xs font-bold text-red-600 dark:text-red-400">{formatCurrency(debits)}</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900/80 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-red-500 transition-all duration-1000 ease-out"
+                          style={{ width: `${(debits / maxFlow) * 100}%`, boxShadow: '0 0 8px rgba(239,68,68,0.3)' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Initial Balance / Edit */}
+                  <div className="pt-3 border-t border-surface-100 dark:border-surface-700/50 relative z-10">
+                    {editingMode === bal.payment_mode ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="flex-1 px-2 py-1 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-xs"
+                          autoFocus
+                        />
+                        <button
+                          onClick={async () => {
+                            await setPaymentModeBalance(bal.payment_mode, parseFloat(editValue))
+                            await loadPaymentModeBalances()
+                            setEditingMode(null)
+                            // Refresh local
+                            const data = await fetchPaymentModeBalances(pmFy ? { fy: pmFy } : undefined)
+                            setLocalPmBalances(data)
+                          }}
+                          className="p-1 rounded bg-primary-500 text-white"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Initial Balance</span>
+                        <span className="text-xs font-bold text-surface-600 dark:text-surface-300">{formatCurrency(initial)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             })}
