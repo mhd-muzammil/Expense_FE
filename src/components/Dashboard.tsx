@@ -3,7 +3,7 @@ import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
-import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances } from '@/lib/api'
+import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, type BillingReminder, type BillingReminderFormData } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -27,6 +27,11 @@ import {
   MapPin,
   Calendar,
   Filter,
+  Bell,
+  Clock,
+  CheckCircle2,
+  AlertCircle,
+  Repeat,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -328,6 +333,354 @@ function BranchCard({ initialData, onFocus }: { initialData: any, onFocus: (name
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+const FREQUENCY_OPTIONS = [
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'half_yearly', label: 'Half Yearly' },
+  { value: 'yearly', label: 'Yearly' },
+  { value: 'one_time', label: 'One Time' },
+]
+
+const FREQUENCY_COLORS: Record<string, string> = {
+  monthly: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  quarterly: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+  half_yearly: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  yearly: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  one_time: 'bg-surface-100 text-surface-600 dark:bg-surface-700 dark:text-surface-300',
+}
+
+function BillingRemindersSection() {
+  const [reminders, setReminders] = useState<BillingReminder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [formData, setFormData] = useState<BillingReminderFormData>({
+    title: '',
+    amount: 0,
+    due_day: 1,
+    frequency: 'monthly',
+    category: '',
+    notes: '',
+    next_due_date: null,
+  })
+
+  const loadReminders = async () => {
+    try {
+      const data = await fetchBillingReminders()
+      setReminders(data)
+    } catch (err) {
+      console.error('Failed to load billing reminders:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadReminders()
+  }, [])
+
+  const handleAdd = async () => {
+    if (!formData.title || !formData.amount) return
+    try {
+      await createBillingReminder(formData)
+      await loadReminders()
+      setShowAddForm(false)
+      setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null })
+    } catch (err) {
+      console.error('Failed to create reminder:', err)
+    }
+  }
+
+  const handleTogglePaid = async (id: number) => {
+    try {
+      await toggleBillingReminderPaid(id)
+      await loadReminders()
+    } catch (err) {
+      console.error('Failed to toggle paid:', err)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteBillingReminder(id)
+      await loadReminders()
+      setDeletingId(null)
+    } catch (err) {
+      console.error('Failed to delete reminder:', err)
+    }
+  }
+
+  const totalMonthly = reminders
+    .filter(r => !r.is_paid)
+    .reduce((sum, r) => {
+      const amt = parseFloat(r.amount) || 0
+      if (r.frequency === 'monthly') return sum + amt
+      if (r.frequency === 'quarterly') return sum + amt / 3
+      if (r.frequency === 'half_yearly') return sum + amt / 6
+      if (r.frequency === 'yearly') return sum + amt / 12
+      return sum
+    }, 0)
+
+  const unpaidCount = reminders.filter(r => !r.is_paid).length
+  const paidCount = reminders.filter(r => r.is_paid).length
+
+  return (
+    <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 p-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <Bell className="w-4.5 h-4.5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-surface-900 dark:text-white">Billing Reminders</h3>
+            <p className="text-[10px] text-surface-400 font-medium">
+              {unpaidCount} pending • {paidCount} paid • ~{formatCurrency(totalMonthly)}/mo
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium
+            bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
+            hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-all"
+        >
+          <Plus className="w-3.5 h-3.5" /> Add Reminder
+        </button>
+      </div>
+
+      {/* Add Form */}
+      {showAddForm && (
+        <div className="mb-5 p-4 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input
+              type="text"
+              placeholder="Title (e.g. WiFi Bill)"
+              value={formData.title}
+              onChange={(e) => setFormData(f => ({ ...f, title: e.target.value }))}
+              className="px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+            />
+            <input
+              type="number"
+              placeholder="Amount"
+              value={formData.amount || ''}
+              onChange={(e) => setFormData(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))}
+              className="px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="relative">
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Due Day</label>
+              <input
+                type="number"
+                min={1}
+                max={31}
+                value={formData.due_day}
+                onChange={(e) => setFormData(f => ({ ...f, due_day: parseInt(e.target.value) || 1 }))}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Frequency</label>
+              <select
+                value={formData.frequency}
+                onChange={(e) => setFormData(f => ({ ...f, frequency: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 cursor-pointer"
+              >
+                {FREQUENCY_OPTIONS.map(f => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Category</label>
+              <input
+                type="text"
+                placeholder="e.g. Utilities"
+                value={formData.category}
+                onChange={(e) => setFormData(f => ({ ...f, category: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Next Due Date (Optional)</label>
+            <input
+              type="date"
+              value={formData.next_due_date || ''}
+              onChange={(e) => setFormData(f => ({ ...f, next_due_date: e.target.value || null }))}
+              className="w-full sm:w-auto px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+            />
+          </div>
+          <textarea
+            placeholder="Notes (optional)"
+            value={formData.notes}
+            onChange={(e) => setFormData(f => ({ ...f, notes: e.target.value }))}
+            rows={2}
+            className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAdd}
+              disabled={!formData.title || !formData.amount}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              Add Reminder
+            </button>
+            <button
+              onClick={() => { setShowAddForm(false); setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null }) }}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-300 transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reminders List */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1,2,3].map(i => (
+            <div key={i} className="rounded-xl p-5 border border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50">
+              <div className="skeleton h-4 w-32 mb-3" />
+              <div className="skeleton h-6 w-24 mb-3" />
+              <div className="skeleton h-3 w-full" />
+            </div>
+          ))}
+        </div>
+      ) : reminders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center mb-3">
+            <Bell className="w-7 h-7 text-amber-400" />
+          </div>
+          <p className="text-sm text-surface-500 font-medium">No billing reminders yet</p>
+          <p className="text-xs text-surface-400 mt-1">Add WiFi, electricity, rent and other recurring bills</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {reminders.map((r) => {
+            const amount = parseFloat(r.amount) || 0
+            const isOverdue = r.next_due_date && new Date(r.next_due_date) < new Date() && !r.is_paid
+            return (
+              <div
+                key={r.id}
+                className={`group/rem relative rounded-xl p-5 border transition-all duration-300 overflow-hidden ${
+                  r.is_paid
+                    ? 'border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/30 dark:bg-emerald-900/5 opacity-70'
+                    : isOverdue
+                    ? 'border-red-200 dark:border-red-900/30 bg-red-50/20 dark:bg-red-900/5 hover:shadow-lg hover:border-red-300'
+                    : 'border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50 hover:shadow-lg hover:border-amber-200 dark:hover:border-amber-800'
+                }`}
+              >
+                {/* Background decoration */}
+                <div className={`absolute top-0 right-0 w-20 h-20 rounded-full -translate-y-8 translate-x-8 transition-all duration-500 ${
+                  r.is_paid ? 'bg-emerald-500/5' : isOverdue ? 'bg-red-500/5' : 'bg-amber-500/5 group-hover/rem:bg-amber-500/10'
+                }`} />
+
+                {/* Header */}
+                <div className="flex items-start justify-between mb-3 relative z-10">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className={`text-sm font-bold truncate ${r.is_paid ? 'line-through text-surface-400' : 'text-surface-800 dark:text-surface-200'}`}>
+                        {r.title}
+                      </h4>
+                      {isOverdue && (
+                        <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 animate-pulse" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${FREQUENCY_COLORS[r.frequency] || FREQUENCY_COLORS.one_time}`}>
+                        <Repeat className="w-2.5 h-2.5" />
+                        {FREQUENCY_OPTIONS.find(f => f.value === r.frequency)?.label || r.frequency}
+                      </span>
+                      {r.category && (
+                        <span className="text-[9px] font-bold text-surface-400 uppercase tracking-wider">{r.category}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
+                    <button
+                      onClick={() => handleTogglePaid(r.id)}
+                      className={`p-1.5 rounded-lg transition-all ${
+                        r.is_paid
+                          ? 'bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200'
+                          : 'hover:bg-surface-200 dark:hover:bg-surface-700'
+                      }`}
+                      title={r.is_paid ? 'Mark as unpaid' : 'Mark as paid'}
+                    >
+                      {r.is_paid ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-surface-400" />
+                      )}
+                    </button>
+                    {deletingId === r.id ? (
+                      <div className="flex items-center gap-1 animate-in fade-in duration-200">
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500 text-white hover:bg-red-600 transition-colors"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(null)}
+                          className="p-0.5 rounded hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+                        >
+                          <X className="w-3 h-3 text-surface-400" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setDeletingId(r.id)}
+                        className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group/del"
+                        title="Delete reminder"
+                      >
+                        <Trash2 className="w-3 h-3 text-surface-400 group-hover/del:text-red-500 transition-colors" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Amount */}
+                <div className="mb-3 relative z-10">
+                  <p className={`text-xl font-black tracking-tight ${r.is_paid ? 'text-emerald-600/50' : isOverdue ? 'text-red-600 dark:text-red-400' : 'text-surface-900 dark:text-white'}`}>
+                    {formatCurrency(amount)}
+                  </p>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between pt-3 border-t border-surface-100 dark:border-surface-700/50 relative z-10">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3 h-3 text-surface-400" />
+                    <span className="text-[10px] font-bold text-surface-400">
+                      {r.next_due_date
+                        ? `Due: ${new Date(r.next_due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                        : `Due Day: ${r.due_day}`
+                      }
+                    </span>
+                  </div>
+                  {r.is_paid ? (
+                    <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Paid ✓</span>
+                  ) : isOverdue ? (
+                    <span className="text-[9px] font-bold text-red-600 uppercase tracking-wider animate-pulse">Overdue!</span>
+                  ) : (
+                    <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">Pending</span>
+                  )}
+                </div>
+
+                {/* Notes */}
+                {r.notes && (
+                  <p className="text-[10px] text-surface-400 mt-2 line-clamp-2 relative z-10">{r.notes}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -934,6 +1287,9 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Billing Reminders Section */}
+      <BillingRemindersSection />
 
       {/* Charts */}
       {loadingDashboard ? (

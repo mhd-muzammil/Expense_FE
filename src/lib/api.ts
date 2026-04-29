@@ -252,4 +252,45 @@ export const setPaymentModeBalance = (payment_mode: string, initial_balance: num
 export const deletePaymentModeBalance = (payment_mode: string) =>
   api.delete('/payment-mode-balances/delete/', { data: { payment_mode } })
 
+// Billing Reminders
+export interface BillingReminder {
+  id: number
+  title: string
+  amount: string
+  due_day: number
+  frequency: string
+  category: string
+  notes: string
+  is_paid: boolean
+  next_due_date: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BillingReminderFormData {
+  title: string
+  amount: number
+  due_day: number
+  frequency: string
+  category?: string
+  notes?: string
+  next_due_date?: string | null
+}
+
+export const fetchBillingReminders = () =>
+  api.get<BillingReminder[]>('/billing-reminders/').then(res => res.data)
+
+export const createBillingReminder = (data: BillingReminderFormData) =>
+  api.post<BillingReminder>('/billing-reminders/create/', data).then(res => res.data)
+
+export const updateBillingReminder = (id: number, data: Partial<BillingReminderFormData>) =>
+  api.put<BillingReminder>(`/billing-reminders/${id}/update/`, data).then(res => res.data)
+
+export const toggleBillingReminderPaid = (id: number) =>
+  api.patch<BillingReminder>(`/billing-reminders/${id}/toggle-paid/`).then(res => res.data)
+
+export const deleteBillingReminder = (id: number) =>
+  api.delete(`/billing-reminders/${id}/delete/`)
+
 export default api
+
