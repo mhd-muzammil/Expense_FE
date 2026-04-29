@@ -576,11 +576,6 @@ function BillingRemindersSection() {
                     : 'border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50 hover:shadow-lg hover:border-amber-200 dark:hover:border-amber-800'
                 }`}
               >
-                {/* Background decoration */}
-                <div className={`absolute top-0 right-0 w-20 h-20 rounded-full -translate-y-8 translate-x-8 transition-all duration-500 ${
-                  r.is_paid ? 'bg-emerald-500/5' : isOverdue ? 'bg-red-500/5' : 'bg-amber-500/5 group-hover/rem:bg-amber-500/10'
-                }`} />
-
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3 relative z-10">
                   <div className="flex-1 min-w-0">
@@ -1150,9 +1145,6 @@ export default function Dashboard() {
               const maxFlow = Math.max(credits, debits, 1)
               return (
                 <div key={bal.payment_mode} className="group/card relative rounded-xl p-5 border border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50 hover:shadow-lg hover:border-primary-200 dark:hover:border-primary-800 transition-all duration-300 overflow-hidden">
-                  {/* Background decoration */}
-                  <div className="absolute top-0 right-0 w-20 h-20 bg-primary-500/5 rounded-full -translate-y-8 translate-x-8 group-hover/card:bg-primary-500/10 transition-all duration-500" />
-                  
                   {/* Header */}
                   <div className="flex items-center justify-between mb-3 relative z-10">
                     <div className="flex items-center gap-2">
