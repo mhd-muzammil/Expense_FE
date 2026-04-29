@@ -231,12 +231,25 @@ export interface PaymentModeBalance {
   payment_mode: string
   initial_balance: string
   current_balance: string
+  total_credits: string
+  total_debits: string
 }
 
-export const fetchPaymentModeBalances = () =>
-  api.get<PaymentModeBalance[]>('/payment-mode-balances/').then(res => res.data)
+export const fetchPaymentModeBalances = (params?: { fy?: string; date_from?: string; date_to?: string }) => {
+  const query = new URLSearchParams()
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) query.set(key, value)
+    })
+  }
+  const qs = query.toString()
+  return api.get<PaymentModeBalance[]>(`/payment-mode-balances/${qs ? '?' + qs : ''}`).then(res => res.data)
+}
 
 export const setPaymentModeBalance = (payment_mode: string, initial_balance: number) =>
   api.post<PaymentModeBalance>('/payment-mode-balances/set/', { payment_mode, initial_balance }).then(res => res.data)
+
+export const deletePaymentModeBalance = (payment_mode: string) =>
+  api.delete('/payment-mode-balances/delete/', { data: { payment_mode } })
 
 export default api
