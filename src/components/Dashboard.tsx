@@ -369,6 +369,7 @@ function BillingRemindersSection() {
     next_due_date: null,
     branch: null,
   })
+  const [regionInput, setRegionInput] = useState('')
 
   const loadReminders = async () => {
     try {
@@ -392,6 +393,7 @@ function BillingRemindersSection() {
       await loadReminders()
       setShowAddForm(false)
       setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null })
+      setRegionInput('')
     } catch (err) {
       console.error('Failed to create reminder:', err)
     }
@@ -488,13 +490,21 @@ function BillingRemindersSection() {
             <div className="relative">
               <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Due Day</label>
               <input
-                type="number"
-                min={1}
-                max={31}
-                value={formData.due_day}
-                onChange={(e) => setFormData(f => ({ ...f, due_day: parseInt(e.target.value) || 1 }))}
+                type="text"
+                list="due-day-options"
+                placeholder="e.g. 5"
+                value={formData.due_day === 0 ? '' : formData.due_day}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '')
+                  setFormData(f => ({ ...f, due_day: val === '' ? 0 : parseInt(val) }))
+                }}
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
               />
+              <datalist id="due-day-options">
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                  <option key={day} value={day} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Frequency</label>
@@ -520,16 +530,23 @@ function BillingRemindersSection() {
             </div>
             <div>
               <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Region</label>
-              <select
-                value={formData.branch || ''}
-                onChange={(e) => setFormData(f => ({ ...f, branch: e.target.value ? parseInt(e.target.value) : null }))}
-                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 cursor-pointer"
-              >
-                <option value="">Global</option>
+              <input
+                type="text"
+                list="region-options"
+                placeholder="Type or select region"
+                value={regionInput}
+                onChange={(e) => {
+                  setRegionInput(e.target.value)
+                  const match = branches.find(b => b.location.toLowerCase() === e.target.value.toLowerCase())
+                  setFormData(f => ({ ...f, branch: match ? match.id : null }))
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+              />
+              <datalist id="region-options">
                 {branches.map(b => (
-                  <option key={b.id} value={b.id}>{b.location}</option>
+                  <option key={b.id} value={b.location} />
                 ))}
-              </select>
+              </datalist>
             </div>
           </div>
           <div>
@@ -557,7 +574,7 @@ function BillingRemindersSection() {
               Add Reminder
             </button>
             <button
-              onClick={() => { setShowAddForm(false); setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null }) }}
+              onClick={() => { setShowAddForm(false); setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null }); setRegionInput('') }}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-300 transition-all"
             >
               Cancel
