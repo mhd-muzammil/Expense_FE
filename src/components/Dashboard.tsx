@@ -354,6 +354,7 @@ const FREQUENCY_COLORS: Record<string, string> = {
 }
 
 function BillingRemindersSection() {
+  const { branches } = useExpenseStore()
   const [reminders, setReminders] = useState<BillingReminder[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -366,6 +367,7 @@ function BillingRemindersSection() {
     category: '',
     notes: '',
     next_due_date: null,
+    branch: null,
   })
 
   const loadReminders = async () => {
@@ -389,7 +391,7 @@ function BillingRemindersSection() {
       await createBillingReminder(formData)
       await loadReminders()
       setShowAddForm(false)
-      setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null })
+      setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null })
     } catch (err) {
       console.error('Failed to create reminder:', err)
     }
@@ -427,6 +429,16 @@ function BillingRemindersSection() {
 
   const unpaidCount = reminders.filter(r => !r.is_paid).length
   const paidCount = reminders.filter(r => r.is_paid).length
+
+  const groupedReminders = useMemo(() => {
+    const groups: Record<string, BillingReminder[]> = {}
+    reminders.forEach(r => {
+      const loc = r.branch_location || 'Global'
+      if (!groups[loc]) groups[loc] = []
+      groups[loc].push(r)
+    })
+    return groups
+  }, [reminders])
 
   return (
     <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 p-6">
@@ -472,7 +484,7 @@ function BillingRemindersSection() {
               className="px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="relative">
               <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Due Day</label>
               <input
@@ -506,6 +518,19 @@ function BillingRemindersSection() {
                 className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30"
               />
             </div>
+            <div>
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Region</label>
+              <select
+                value={formData.branch || ''}
+                onChange={(e) => setFormData(f => ({ ...f, branch: e.target.value ? parseInt(e.target.value) : null }))}
+                className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 cursor-pointer"
+              >
+                <option value="">Global</option>
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.location}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div>
             <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1 block">Next Due Date (Optional)</label>
@@ -532,7 +557,7 @@ function BillingRemindersSection() {
               Add Reminder
             </button>
             <button
-              onClick={() => { setShowAddForm(false); setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null }) }}
+              onClick={() => { setShowAddForm(false); setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null }) }}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-300 transition-all"
             >
               Cancel
@@ -561,119 +586,92 @@ function BillingRemindersSection() {
           <p className="text-xs text-surface-400 mt-1">Add WiFi, electricity, rent and other recurring bills</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {reminders.map((r) => {
-            const amount = parseFloat(r.amount) || 0
-            const isOverdue = r.next_due_date && new Date(r.next_due_date) < new Date() && !r.is_paid
-            return (
-              <div
-                key={r.id}
-                className={`group/rem relative rounded-xl p-5 border transition-all duration-300 overflow-hidden ${
-                  r.is_paid
-                    ? 'border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/30 dark:bg-emerald-900/5 opacity-70'
-                    : isOverdue
-                    ? 'border-red-200 dark:border-red-900/30 bg-red-50/20 dark:bg-red-900/5 hover:shadow-lg hover:border-red-300'
-                    : 'border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50 hover:shadow-lg hover:border-amber-200 dark:hover:border-amber-800'
-                }`}
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3 relative z-10">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className={`text-sm font-bold truncate ${r.is_paid ? 'line-through text-surface-400' : 'text-surface-800 dark:text-surface-200'}`}>
-                        {r.title}
-                      </h4>
-                      {isOverdue && (
-                        <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 animate-pulse" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${FREQUENCY_COLORS[r.frequency] || FREQUENCY_COLORS.one_time}`}>
-                        <Repeat className="w-2.5 h-2.5" />
-                        {FREQUENCY_OPTIONS.find(f => f.value === r.frequency)?.label || r.frequency}
-                      </span>
-                      {r.category && (
-                        <span className="text-[9px] font-bold text-surface-400 uppercase tracking-wider">{r.category}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-0.5 flex-shrink-0 ml-2">
-                    <button
-                      onClick={() => handleTogglePaid(r.id)}
-                      className={`p-1.5 rounded-lg transition-all ${
-                        r.is_paid
-                          ? 'bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200'
-                          : 'hover:bg-surface-200 dark:hover:bg-surface-700'
-                      }`}
-                      title={r.is_paid ? 'Mark as unpaid' : 'Mark as paid'}
-                    >
-                      {r.is_paid ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : (
-                        <Clock className="w-4 h-4 text-surface-400" />
-                      )}
-                    </button>
-                    {deletingId === r.id ? (
-                      <div className="flex items-center gap-1 animate-in fade-in duration-200">
-                        <button
-                          onClick={() => handleDelete(r.id)}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500 text-white hover:bg-red-600 transition-colors"
-                        >
-                          Yes
-                        </button>
-                        <button
-                          onClick={() => setDeletingId(null)}
-                          className="p-0.5 rounded hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
-                        >
-                          <X className="w-3 h-3 text-surface-400" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setDeletingId(r.id)}
-                        className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors group/del"
-                        title="Delete reminder"
-                      >
-                        <Trash2 className="w-3 h-3 text-surface-400 group-hover/del:text-red-500 transition-colors" />
-                      </button>
-                    )}
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Object.entries(groupedReminders).map(([region, regionReminders]) => (
+            <div key={region} className="rounded-2xl p-5 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 flex flex-col hover:shadow-xl transition-all duration-500 relative group overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-4 relative z-10">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-md shadow-amber-500/20">
+                  <MapPin className="w-4 h-4" />
                 </div>
-
-                {/* Amount */}
-                <div className="mb-3 relative z-10">
-                  <p className={`text-xl font-black tracking-tight ${r.is_paid ? 'text-emerald-600/50' : isOverdue ? 'text-red-600 dark:text-red-400' : 'text-surface-900 dark:text-white'}`}>
-                    {formatCurrency(amount)}
-                  </p>
+                <div>
+                  <h4 className="text-sm font-bold text-surface-900 dark:text-white leading-tight">{region}</h4>
+                  <p className="text-[9px] text-surface-400 font-bold uppercase tracking-widest">{regionReminders.length} Reminders</p>
                 </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-between pt-3 border-t border-surface-100 dark:border-surface-700/50 relative z-10">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-3 h-3 text-surface-400" />
-                    <span className="text-[10px] font-bold text-surface-400">
-                      {r.next_due_date
-                        ? `Due: ${new Date(r.next_due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                        : `Due Day: ${r.due_day}`
-                      }
-                    </span>
-                  </div>
-                  {r.is_paid ? (
-                    <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Paid ✓</span>
-                  ) : isOverdue ? (
-                    <span className="text-[9px] font-bold text-red-600 uppercase tracking-wider animate-pulse">Overdue!</span>
-                  ) : (
-                    <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">Pending</span>
-                  )}
-                </div>
-
-                {/* Notes */}
-                {r.notes && (
-                  <p className="text-[10px] text-surface-400 mt-2 line-clamp-2 relative z-10">{r.notes}</p>
-                )}
               </div>
-            )
-          })}
+
+              {/* List of Reminders in this Region */}
+              <div className="flex-1 space-y-3 relative z-10 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
+                {regionReminders.map(r => {
+                  const amount = parseFloat(r.amount) || 0
+                  const isOverdue = r.next_due_date && new Date(r.next_due_date) < new Date() && !r.is_paid
+                  return (
+                    <div key={r.id} className="group/item flex flex-col gap-1.5 pb-3 border-b border-surface-50 dark:border-surface-700/50 last:border-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h5 className={`text-sm font-bold truncate ${r.is_paid ? 'line-through text-surface-400' : 'text-surface-800 dark:text-surface-200'}`}>
+                              {r.title}
+                            </h5>
+                            {isOverdue && <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 animate-pulse" />}
+                          </div>
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${FREQUENCY_COLORS[r.frequency] || FREQUENCY_COLORS.one_time}`}>
+                            <Repeat className="w-2.5 h-2.5" />
+                            {FREQUENCY_OPTIONS.find(f => f.value === r.frequency)?.label || r.frequency}
+                          </span>
+                        </div>
+                        <span className={`text-sm font-black flex-shrink-0 ${r.is_paid ? 'text-emerald-600/50' : isOverdue ? 'text-red-600 dark:text-red-400' : 'text-surface-900 dark:text-white'}`}>
+                          {formatCurrency(amount)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3 h-3 text-surface-400" />
+                          <span className="text-[10px] font-bold text-surface-400">
+                            {r.next_due_date
+                              ? `Due: ${new Date(r.next_due_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                              : `Due Day: ${r.due_day}`
+                            }
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {r.is_paid ? (
+                            <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Paid ✓</span>
+                          ) : isOverdue ? (
+                            <span className="text-[9px] font-bold text-red-600 uppercase tracking-wider animate-pulse">Overdue!</span>
+                          ) : (
+                            <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wider">Pending</span>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleTogglePaid(r.id)}
+                              className={`p-1.5 rounded-lg transition-all ${r.is_paid ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' : 'hover:bg-surface-200 dark:hover:bg-surface-700 text-surface-400 hover:text-emerald-500'}`}
+                              title={r.is_paid ? 'Mark as unpaid' : 'Mark as paid'}
+                            >
+                              {r.is_paid ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                            </button>
+                            {deletingId === r.id ? (
+                              <div className="flex items-center gap-1 animate-in fade-in duration-200">
+                                <button onClick={() => handleDelete(r.id)} className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500 text-white hover:bg-red-600">Yes</button>
+                                <button onClick={() => setDeletingId(null)} className="p-0.5 rounded hover:bg-surface-200"><X className="w-3 h-3 text-surface-400" /></button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setDeletingId(r.id)}
+                                className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-400 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
