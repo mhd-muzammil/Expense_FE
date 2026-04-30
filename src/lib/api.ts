@@ -263,6 +263,8 @@ export interface BillingReminder {
   notes: string
   is_paid: boolean
   next_due_date: string | null
+  branch: number | null
+  branch_location: string | null
   created_at: string
   updated_at: string
 }
@@ -275,6 +277,7 @@ export interface BillingReminderFormData {
   category?: string
   notes?: string
   next_due_date?: string | null
+  branch?: number | null
 }
 
 export const fetchBillingReminders = () =>
