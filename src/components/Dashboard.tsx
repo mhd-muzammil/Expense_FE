@@ -1254,7 +1254,26 @@ export default function Dashboard() {
                       )}
                     </div>
                   </div>
--
+
+                  {/* Current Balance */}
+                  <div className="mb-4 relative z-10">
+                    <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Availabe Balance</p>
+                    <p className={`text-2xl font-black tracking-tight ${current >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {formatCurrency(current)}
+                    </p>
+                  </div>
+
+                  {/* Credits & Debits Breakdown */}
+                  <div className="space-y-3 mb-4 relative z-10">
+                    {/* Credits */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          <ArrowUpRight className="w-3 h-3 text-emerald-500" />
+                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Credits</span>
+                        </div>
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(credits)}</span>
+                      </div>
                       <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900/80 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full bg-emerald-500 transition-all duration-1000 ease-out"
