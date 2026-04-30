@@ -3,7 +3,7 @@ import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
-import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, type BillingReminder, type BillingReminderFormData } from '@/lib/api'
+import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, type BillingReminder, type BillingReminderFormData } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -358,6 +358,7 @@ function BillingRemindersSection() {
   const [reminders, setReminders] = useState<BillingReminder[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [formData, setFormData] = useState<BillingReminderFormData>({
     title: '',
@@ -386,17 +387,39 @@ function BillingRemindersSection() {
     loadReminders()
   }, [])
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     if (!formData.title || !formData.amount) return
     try {
-      await createBillingReminder(formData)
+      if (editingId) {
+        await updateBillingReminder(editingId, formData)
+      } else {
+        await createBillingReminder(formData)
+      }
       await loadReminders()
       setShowAddForm(false)
+      setEditingId(null)
       setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null })
       setRegionInput('')
     } catch (err) {
-      console.error('Failed to create reminder:', err)
+      console.error('Failed to save reminder:', err)
     }
+  }
+
+  const handleEdit = (r: BillingReminder) => {
+    setFormData({
+      title: r.title,
+      amount: parseFloat(r.amount) || 0,
+      due_day: r.due_day,
+      frequency: r.frequency,
+      category: r.category || '',
+      notes: r.notes || '',
+      next_due_date: r.next_due_date,
+      branch: r.branch
+    })
+    setRegionInput(r.branch_location || '')
+    setEditingId(r.id)
+    setShowAddForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const handleTogglePaid = async (id: number) => {
@@ -458,7 +481,12 @@ function BillingRemindersSection() {
           </div>
         </div>
         <button
-          onClick={() => setShowAddForm(true)}
+          onClick={() => {
+            setEditingId(null)
+            setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null })
+            setRegionInput('')
+            setShowAddForm(true)
+          }}
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium
             bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400
             hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-all"
@@ -467,9 +495,14 @@ function BillingRemindersSection() {
         </button>
       </div>
 
-      {/* Add Form */}
+      {/* Add/Edit Form */}
       {showAddForm && (
         <div className="mb-5 p-4 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-bold text-surface-900 dark:text-white">
+              {editingId ? 'Edit Reminder' : 'Add New Reminder'}
+            </h4>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               type="text"
@@ -565,16 +598,16 @@ function BillingRemindersSection() {
             rows={2}
             className="w-full px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mt-2">
             <button
-              onClick={handleAdd}
+              onClick={handleSave}
               disabled={!formData.title || !formData.amount}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              Add Reminder
+              {editingId ? 'Update Reminder' : 'Save Reminder'}
             </button>
             <button
-              onClick={() => { setShowAddForm(false); setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null }); setRegionInput('') }}
+              onClick={() => { setShowAddForm(false); setEditingId(null); setFormData({ title: '', amount: 0, due_day: 1, frequency: 'monthly', category: '', notes: '', next_due_date: null, branch: null }); setRegionInput('') }}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-200 dark:bg-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-300 transition-all"
             >
               Cancel
@@ -673,12 +706,22 @@ function BillingRemindersSection() {
                                 <button onClick={() => setDeletingId(null)} className="p-0.5 rounded hover:bg-surface-200"><X className="w-3 h-3 text-surface-400" /></button>
                               </div>
                             ) : (
-                              <button
-                                onClick={() => setDeletingId(r.id)}
-                                className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-400 hover:text-red-500 transition-colors"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleEdit(r)}
+                                  className="p-1.5 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 text-surface-400 hover:text-amber-500 transition-colors"
+                                  title="Edit reminder"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setDeletingId(r.id)}
+                                  className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-surface-400 hover:text-red-500 transition-colors"
+                                  title="Delete reminder"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -1211,26 +1254,7 @@ export default function Dashboard() {
                       )}
                     </div>
                   </div>
-
-                  {/* Current Balance */}
-                  <div className="mb-4 relative z-10">
-                    <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Current Balance</p>
-                    <p className={`text-2xl font-black tracking-tight ${current >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {formatCurrency(current)}
-                    </p>
-                  </div>
-
-                  {/* Credits & Debits Breakdown */}
-                  <div className="space-y-3 mb-4 relative z-10">
-                    {/* Credits */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5">
-                          <ArrowUpRight className="w-3 h-3 text-emerald-500" />
-                          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Credits</span>
-                        </div>
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(credits)}</span>
-                      </div>
+-
                       <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900/80 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full bg-emerald-500 transition-all duration-1000 ease-out"
