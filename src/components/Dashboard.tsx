@@ -3,7 +3,7 @@ import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
-import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, type BillingReminder, type BillingReminderFormData } from '@/lib/api'
+import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -32,6 +32,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Repeat,
+  ArrowLeft,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -69,7 +70,7 @@ function SkeletonChart() {
   )
 }
 
-function BranchCard({ initialData, onFocus }: { initialData: any, onFocus: (name: string) => void }) {
+function BranchCard({ initialData, onFocus, onViewExpense }: { initialData: any, onFocus: (name: string) => void, onViewExpense: (exp: Expense) => void }) {
   const [localFilters, setLocalFilters] = useState({
     date_from: '',
     date_to: '',
@@ -78,6 +79,9 @@ function BranchCard({ initialData, onFocus }: { initialData: any, onFocus: (name
   const [showCustom, setShowCustom] = useState(false)
   const [data, setData] = useState(initialData)
   const [loading, setLoading] = useState(false)
+  const [drillCategory, setDrillCategory] = useState<string | null>(null)
+  const [drillExpenses, setDrillExpenses] = useState<Expense[]>([])
+  const [loadingDrill, setLoadingDrill] = useState(false)
 
   const handleLocalFilterChange = (key: string, value: string) => {
     setLocalFilters(prev => ({ ...prev, [key]: value }))
@@ -161,6 +165,29 @@ function BranchCard({ initialData, onFocus }: { initialData: any, onFocus: (name
       setData(initialData)
     }
   }, [initialData, isFiltered])
+
+  const handleCategoryClick = async (category: string) => {
+    setDrillCategory(category)
+    setLoadingDrill(true)
+    try {
+      const result = await fetchExpenses({
+        branch: initialData.name,
+        category: category,
+        date_from: localFilters.date_from || undefined,
+        date_to: localFilters.date_to || undefined
+      })
+      setDrillExpenses(result.results)
+    } catch (err) {
+      console.error('Failed to fetch drill expenses:', err)
+    } finally {
+      setLoadingDrill(false)
+    }
+  }
+
+  const handleBack = () => {
+    setDrillCategory(null)
+    setDrillExpenses([])
+  }
 
   return (
     <div className={`rounded-3xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 flex flex-col hover:shadow-xl transition-all duration-500 relative group overflow-hidden ${loading ? 'opacity-60' : ''}`}>
@@ -274,46 +301,102 @@ function BranchCard({ initialData, onFocus }: { initialData: any, onFocus: (name
 
       <div className="flex-1 space-y-4 relative z-10">
         <div className="flex items-center justify-between border-b border-surface-50 dark:border-surface-700/50 pb-2">
-          <span className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Category Distribution</span>
+          <div className="flex items-center gap-2">
+            {drillCategory && (
+              <button 
+                onClick={handleBack}
+                className="p-1 rounded-md hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-surface-400" />
+              </button>
+            )}
+            <span className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">
+              {drillCategory ? `Expenses: ${drillCategory}` : 'Category Distribution'}
+            </span>
+          </div>
           <span className="text-[10px] font-black text-red-600 dark:text-red-400 px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-900/20">
             -{formatCurrency(data.Debits)}
           </span>
         </div>
 
         <div className="space-y-4 pr-1 custom-scrollbar max-h-[180px] overflow-y-auto">
-          {data.categories.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="w-10 h-10 rounded-full bg-surface-50 dark:bg-surface-900 flex items-center justify-center mb-2">
-                <Package className="w-5 h-5 text-surface-200" />
+          {drillCategory ? (
+            loadingDrill ? (
+              <div className="space-y-3 py-2">
+                {[1,2,3].map(i => (
+                  <div key={i} className="flex flex-col gap-1.5">
+                    <div className="skeleton h-3 w-3/4" />
+                    <div className="skeleton h-2 w-1/2" />
+                  </div>
+                ))}
               </div>
-              <p className="text-[10px] text-surface-400 font-bold uppercase tracking-tighter">No data for selected period</p>
-            </div>
+            ) : drillExpenses.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <p className="text-[10px] text-surface-400 font-bold uppercase tracking-tighter">No expenses found</p>
+              </div>
+            ) : (
+              drillExpenses.map((exp) => (
+                <button 
+                  key={exp.id} 
+                  onClick={() => onViewExpense(exp)}
+                  className="w-full text-left group/exp border-b border-surface-50 dark:border-surface-700/30 pb-3 last:border-0 hover:bg-surface-50/50 dark:hover:bg-surface-900/30 transition-all rounded-lg p-1 -m-1"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-bold text-surface-900 dark:text-white">
+                      {exp.debited_amount ? formatCurrency(exp.debited_amount) : formatCurrency(exp.credited_amount || 0)}
+                    </span>
+                    <span className="text-[9px] text-surface-400 font-medium">{new Date(exp.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                  </div>
+                  <p className="text-[10px] text-surface-500 dark:text-surface-400 line-clamp-1">
+                    {(exp.debit_remark || exp.credit_remark || 'No remark')}
+                  </p>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[9px] font-bold text-surface-400 uppercase tracking-tighter">By {exp.debit_person || exp.credit_person || '—'}</span>
+                    <span className="text-[9px] text-primary-500 font-bold">{exp.debit_payment_mode || exp.credit_payment_mode || '—'}</span>
+                  </div>
+                </button>
+              ))
+            )
           ) : (
-            data.categories.map((cat: any, cIdx: number) => {
-              const percentage = data.Debits > 0 ? (cat.value / data.Debits) * 100 : 0
-              const color = getCategoryHex(cat.name, cIdx)
-              return (
-                <div key={cat.name} className="group/item">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: color }} />
-                      <span className="text-xs font-bold text-surface-700 dark:text-surface-300 group-hover/item:text-surface-900 dark:group-hover/item:text-white transition-colors">{cat.name}</span>
-                    </div>
-                    <span className="text-xs font-black text-surface-900 dark:text-white">{formatCurrency(cat.value)}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900/80 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full rounded-full transition-all duration-1000 ease-out"
-                      style={{ 
-                        width: `${percentage}%`, 
-                        backgroundColor: color,
-                        boxShadow: `0 0 10px ${color}40`
-                      }}
-                    />
-                  </div>
+            data.categories.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="w-10 h-10 rounded-full bg-surface-50 dark:bg-surface-900 flex items-center justify-center mb-2">
+                  <Package className="w-5 h-5 text-surface-200" />
                 </div>
-              )
-            })
+                <p className="text-[10px] text-surface-400 font-bold uppercase tracking-tighter">No data for selected period</p>
+              </div>
+            ) : (
+              data.categories.map((cat: any, cIdx: number) => {
+                const percentage = data.Debits > 0 ? (cat.value / data.Debits) * 100 : 0
+                const color = getCategoryHex(cat.name, cIdx)
+                return (
+                  <div key={cat.name} className="group/item">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: color }} />
+                        <span className="text-xs font-bold text-surface-700 dark:text-surface-300 group-hover/item:text-surface-900 dark:group-hover/item:text-white transition-colors">{cat.name}</span>
+                      </div>
+                      <button 
+                        onClick={() => handleCategoryClick(cat.name)}
+                        className="text-xs font-black text-surface-900 dark:text-white hover:text-primary-500 dark:hover:text-primary-400 hover:scale-105 transition-all cursor-pointer underline decoration-dotted decoration-surface-300 underline-offset-4"
+                      >
+                        {formatCurrency(cat.value)}
+                      </button>
+                    </div>
+                    <div className="h-1.5 w-full bg-surface-100 dark:bg-surface-900/80 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-1000 ease-out"
+                        style={{ 
+                          width: `${percentage}%`, 
+                          backgroundColor: color,
+                          boxShadow: `0 0 10px ${color}40`
+                        }}
+                      />
+                    </div>
+                  </div>
+                )
+              })
+            )
           )}
         </div>
       </div>
@@ -330,6 +413,158 @@ function BranchCard({ initialData, onFocus }: { initialData: any, onFocus: (name
             <TrendingUp className="w-5 h-5 text-emerald-600" />
           ) : (
             <TrendingDown className="w-5 h-5 text-red-600" />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ExpenseDetailModal({ expense, onClose }: { expense: Expense, onClose: () => void }) {
+  const isCredit = expense.credited_amount && parseFloat(expense.credited_amount) > 0
+  const amount = isCredit ? expense.credited_amount : expense.debited_amount
+  const remark = isCredit ? expense.credit_remark : expense.debit_remark
+  const person = isCredit ? expense.credit_person : expense.debit_person
+  const mode = isCredit ? expense.credit_payment_mode : expense.debit_payment_mode
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white dark:bg-surface-800 rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 dark:border-surface-700">
+          <h2 className="text-lg font-bold text-surface-900 dark:text-white">Expense Details</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors">
+            <X className="w-5 h-5 text-surface-500" />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="flex justify-between items-center py-2 border-b border-surface-50 dark:border-surface-700/50">
+            <span className="text-sm text-surface-500 dark:text-surface-400 font-medium">Amount</span>
+            <span className={`text-lg font-black ${isCredit ? 'text-emerald-600' : 'text-red-600'}`}>
+              {isCredit ? '+' : '−'}{formatCurrency(amount || 0)}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Date</p>
+              <p className="text-sm font-semibold text-surface-900 dark:text-white">{new Date(expense.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Category</p>
+              <p className="text-sm font-semibold text-surface-900 dark:text-white">{expense.category}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Branch</p>
+              <p className="text-sm font-semibold text-surface-900 dark:text-white">{expense.branch_location}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Payment Mode</p>
+              <p className="text-sm font-semibold text-primary-600 dark:text-primary-400">{mode || '—'}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Remark</p>
+            <p className="text-sm text-surface-700 dark:text-surface-300 leading-relaxed bg-surface-50 dark:bg-surface-900/50 p-3 rounded-xl border border-surface-100 dark:border-surface-700/50">
+              {remark || 'No remark provided'}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Person</p>
+            <p className="text-sm font-semibold text-surface-900 dark:text-white">{person || '—'}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DrillModal({ filters, onClose, onViewExpense }: { filters: { branch?: string, category?: string, date_from?: string, date_to?: string }, onClose: () => void, onViewExpense: (exp: Expense) => void }) {
+  const [expenses, setExpenses] = useState<Expense[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetchExpenses(filters)
+        setExpenses(res.results)
+      } catch (err) {
+        console.error('Drill load failed:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [filters])
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-white dark:bg-surface-800 rounded-3xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-8 py-6 border-b border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50">
+          <div>
+            <h2 className="text-xl font-black text-surface-900 dark:text-white tracking-tight">Detailed Entries</h2>
+            <p className="text-xs text-surface-400 font-bold uppercase tracking-widest mt-0.5">
+              {filters.branch || 'All Branches'} • {filters.category || 'All Categories'}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-white dark:hover:bg-surface-700 shadow-sm border border-transparent hover:border-surface-100 transition-all">
+            <X className="w-6 h-6 text-surface-400" />
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          {loading ? (
+            <div className="space-y-4">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="flex flex-col gap-2">
+                  <div className="skeleton h-4 w-1/4" />
+                  <div className="skeleton h-12 w-full" />
+                </div>
+              ))}
+            </div>
+          ) : expenses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-16 h-16 rounded-full bg-surface-50 dark:bg-surface-900 flex items-center justify-center mb-4">
+                <Package className="w-8 h-8 text-surface-200" />
+              </div>
+              <p className="text-base font-bold text-surface-400 uppercase tracking-widest">No entries found for this period</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {expenses.map((exp) => {
+                const isCredit = exp.credited_amount && parseFloat(exp.credited_amount) > 0
+                return (
+                  <button
+                    key={exp.id}
+                    onClick={() => onViewExpense(exp)}
+                    className="w-full text-left group/item p-4 rounded-2xl border border-surface-100 dark:border-surface-700/50 hover:border-primary-500/50 hover:bg-primary-50/5 dark:hover:bg-primary-900/10 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isCredit ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600' : 'bg-red-50 dark:bg-red-900/20 text-red-600'}`}>
+                          {isCredit ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-surface-400 uppercase tracking-widest block mb-0.5">{new Date(exp.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                          <span className="text-sm font-bold text-surface-900 dark:text-white group-hover/item:text-primary-500 transition-colors">{exp.category}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-base font-black ${isCredit ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {isCredit ? '+' : '−'}{formatCurrency(isCredit ? exp.credited_amount! : exp.debited_amount!)}
+                        </span>
+                        <span className="text-[10px] text-surface-400 font-bold block mt-0.5">{exp.debit_payment_mode || exp.credit_payment_mode || '—'}</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-surface-500 dark:text-surface-400 line-clamp-1 italic bg-surface-50/50 dark:bg-surface-900/30 p-2 rounded-lg border border-surface-100/50 dark:border-surface-700/30">
+                      "{(exp.debit_remark || exp.credit_remark || 'No remark')}"
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
@@ -770,6 +1005,8 @@ export default function Dashboard() {
   const [pmFy, setPmFy] = useState('')
   const [pmLoading, setPmLoading] = useState(false)
   const [localPmBalances, setLocalPmBalances] = useState(paymentModeBalances)
+  const [viewingExpense, setViewingExpense] = useState<Expense | null>(null)
+  const [drillFilters, setDrillFilters] = useState<{ branch?: string, category?: string, date_from?: string, date_to?: string } | null>(null)
 
   const financialYears = useMemo(() => getFinancialYears(), [])
 
@@ -1044,8 +1281,11 @@ export default function Dashboard() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 stagger-children">
           {/* Total Balance */}
-          <div className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-xl shadow-primary-500/20">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-8 translate-x-8" />
+          <button 
+            onClick={() => setActiveTab('expenses')}
+            className="relative overflow-hidden rounded-2xl p-6 bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-xl shadow-primary-500/20 text-left group transition-all hover:scale-[1.02]"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-8 translate-x-8 group-hover:scale-110 transition-transform" />
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
@@ -1056,13 +1296,19 @@ export default function Dashboard() {
               <p className="text-3xl font-bold">{formatCurrency(totalBalance)}</p>
               <p className="text-sm text-white/60 mt-1">For selected period</p>
             </div>
-          </div>
+          </button>
 
           {/* Total Credits */}
-          <div className="relative overflow-hidden rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700
-            hover:shadow-md hover:shadow-emerald-500/5 transition-all duration-300">
+          <button 
+            onClick={() => {
+              setFilters({ category: undefined, search: undefined }) // Clear search/cat to show all credits
+              setActiveTab('expenses')
+            }}
+            className="relative overflow-hidden rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700
+            hover:shadow-md hover:shadow-emerald-500/5 transition-all duration-300 text-left group"
+          >
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
                 <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
               <span className="text-sm font-medium text-surface-500 dark:text-surface-400"> Overall Total Credits</span>
@@ -1072,13 +1318,19 @@ export default function Dashboard() {
               <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
               <span className="text-sm text-emerald-600 dark:text-emerald-400">Income</span>
             </div>
-          </div>
+          </button>
 
           {/* Total Debits */}
-          <div className="relative overflow-hidden rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700
-            hover:shadow-md hover:shadow-red-500/5 transition-all duration-300">
+          <button 
+            onClick={() => {
+              setFilters({ category: undefined, search: undefined }) // Clear search/cat to show all debits
+              setActiveTab('expenses')
+            }}
+            className="relative overflow-hidden rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700
+            hover:shadow-md hover:shadow-red-500/5 transition-all duration-300 text-left group"
+          >
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
                 <TrendingDown className="w-4 h-4 text-red-600 dark:text-red-400" />
               </div>
               <span className="text-sm font-medium text-surface-500 dark:text-surface-400">Overall Total Debits</span>
@@ -1088,7 +1340,7 @@ export default function Dashboard() {
               <ArrowDownRight className="w-3.5 h-3.5 text-red-500" />
               <span className="text-sm text-red-600 dark:text-red-400">Expenses</span>
             </div>
-          </div>
+          </button>
         </div>
       )}
 
@@ -1394,7 +1646,18 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-bold text-surface-900 dark:text-white">{formatCurrency(item.value)}</p>
+                          <button 
+                            onClick={() => {
+                              setDrillFilters({ 
+                                category: item.name, 
+                                date_from: filters.date_from, 
+                                date_to: filters.date_to 
+                              })
+                            }}
+                            className="text-sm font-bold text-surface-900 dark:text-white hover:text-primary-500 transition-colors cursor-pointer underline decoration-dotted decoration-surface-300 underline-offset-4"
+                          >
+                            {formatCurrency(item.value)}
+                          </button>
                           <div className="flex items-center justify-end gap-1 mt-0.5">
                             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                             <span className="text-[10px] text-surface-400 font-medium">Category</span>
@@ -1489,10 +1752,27 @@ export default function Dashboard() {
                 key={branch.name} 
                 initialData={branch} 
                 onFocus={(name) => handleFilterChange('branch', name)} 
+                onViewExpense={(exp) => setViewingExpense(exp)}
               />
             ))}
           </div>
         </div>
+      )}
+
+      {/* Detailed Entry Modals */}
+      {drillFilters && (
+        <DrillModal 
+          filters={drillFilters} 
+          onClose={() => setDrillFilters(null)} 
+          onViewExpense={(exp) => setViewingExpense(exp)}
+        />
+      )}
+
+      {viewingExpense && (
+        <ExpenseDetailModal 
+          expense={viewingExpense} 
+          onClose={() => setViewingExpense(null)} 
+        />
       )}
     </div>
   )

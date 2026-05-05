@@ -57,6 +57,7 @@ interface ExpenseStore {
   // UI
   toasts: Toast[]
   theme: 'light' | 'dark'
+  activeTab: 'dashboard' | 'expenses'
 
   // Auth actions
   initAuth: () => Promise<void>
@@ -83,6 +84,7 @@ interface ExpenseStore {
   removeToast: (id: string) => void
 
   toggleTheme: () => void
+  setActiveTab: (tab: 'dashboard' | 'expenses') => void
 }
 
 const useExpenseStore = create<ExpenseStore>((set, get) => ({
@@ -109,6 +111,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
 
   toasts: [],
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
+  activeTab: 'dashboard',
 
   // Auth
   initAuth: async () => {
@@ -153,6 +156,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       dashboard: null,
       totalCount: 0,
       filters: {},
+      activeTab: 'dashboard',
     })
   },
 
@@ -334,6 +338,8 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       return { theme: newTheme }
     })
   },
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
 }))
 
 export default useExpenseStore

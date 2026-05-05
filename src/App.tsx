@@ -9,8 +9,7 @@ import { LayoutDashboard, Receipt, Loader2 } from 'lucide-react'
 type Tab = 'dashboard' | 'expenses'
 
 function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
-  const { user, authReady, initAuth, loadAll, logout } = useExpenseStore()
+  const { user, authReady, initAuth, loadAll, logout, activeTab, setActiveTab } = useExpenseStore()
 
   // Initial auth check (validates any stored token against the API).
   useEffect(() => {
