@@ -992,7 +992,7 @@ function getFinancialYears(): { label: string; value: string }[] {
 }
 
 export default function Dashboard() {
-  const { dashboard, loadingDashboard, branches, categories, filters, setFilters, loadDashboard, loadExpenses, paymentModeBalances, loadPaymentModeBalances } = useExpenseStore()
+  const { dashboard, loadingDashboard, branches, categories, filters, setFilters, loadDashboard, loadExpenses, paymentModeBalances, loadPaymentModeBalances, setActiveTab } = useExpenseStore()
   const [editingMode, setEditingMode] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [showAddMode, setShowAddMode] = useState(false)
