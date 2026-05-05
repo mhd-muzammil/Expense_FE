@@ -235,7 +235,7 @@ export interface PaymentModeBalance {
   total_debits: string
 }
 
-export const fetchPaymentModeBalances = (params?: { fy?: string; date_from?: string; date_to?: string }) => {
+export const fetchPaymentModeBalances = (params?: { fy?: string; month?: string; date_from?: string; date_to?: string }) => {
   const query = new URLSearchParams()
   if (params) {
     Object.entries(params).forEach(([key, value]) => {

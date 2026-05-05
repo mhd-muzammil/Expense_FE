@@ -1003,6 +1003,7 @@ export default function Dashboard() {
   const [showCustom, setShowCustom] = useState(false)
   const [deletingMode, setDeletingMode] = useState<string | null>(null)
   const [pmFy, setPmFy] = useState('')
+  const [pmMonth, setPmMonth] = useState('')
   const [pmLoading, setPmLoading] = useState(false)
   const [localPmBalances, setLocalPmBalances] = useState(paymentModeBalances)
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null)
@@ -1015,7 +1016,10 @@ export default function Dashboard() {
     const loadFiltered = async () => {
       setPmLoading(true)
       try {
-        const data = await fetchPaymentModeBalances(pmFy ? { fy: pmFy } : undefined)
+        const data = await fetchPaymentModeBalances({
+          fy: pmFy || undefined,
+          month: pmMonth || undefined
+        })
         setLocalPmBalances(data)
       } catch (err) {
         console.error('Failed to load payment mode balances:', err)
@@ -1024,14 +1028,14 @@ export default function Dashboard() {
       }
     }
     loadFiltered()
-  }, [pmFy])
+  }, [pmFy, pmMonth])
 
   // Sync with global store when no FY filter
   useEffect(() => {
-    if (!pmFy) {
+    if (!pmFy && !pmMonth) {
       setLocalPmBalances(paymentModeBalances)
     }
-  }, [paymentModeBalances, pmFy])
+  }, [paymentModeBalances, pmFy, pmMonth])
 
   const onPieEnter = (_: any, index: number) => {
     setActiveIndex(index)
@@ -1371,6 +1375,19 @@ export default function Dashboard() {
               {financialYears.map(fy => (
                 <option key={fy.value} value={fy.value}>{fy.label}</option>
               ))}
+            </select>
+
+            {/* Month Filter */}
+            <select
+              value={pmMonth}
+              onChange={(e) => setPmMonth(e.target.value)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-primary-500/30 cursor-pointer"
+            >
+              <option value="">Full Year</option>
+              {['April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March'].map((m, i) => {
+                const val = ((i + 3) % 12) + 1; // 4, 5, ..., 12, 1, 2, 3
+                return <option key={val} value={String(val)}>{m}</option>
+              })}
             </select>
             <button
               onClick={() => setShowAddMode(true)}
