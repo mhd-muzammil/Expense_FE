@@ -5,6 +5,26 @@ import { getCategoryBadgeClass } from '@/lib/categories'
 import type { Expense } from '@/lib/api'
 import { downloadExport } from '@/lib/api'
 import ExpenseForm from './ExpenseForm'
+
+const FIXED_CATEGORIES = [
+  'Salary monthly',
+  'Salary advance',
+  'Courier',
+  'Office rent',
+  'Room rent',
+  'Wifi recharge',
+  'Phone recharge',
+  'Eb',
+  'Travel',
+  'Water',
+  'Tea',
+  'Petty cash',
+  'Food',
+  'Transferred',
+  'Petrol Allowance',
+  'Petrol advance'
+]
+
 import {
   Plus,
   Pencil,
@@ -41,6 +61,8 @@ export default function ExpenseTable() {
     branches, categories, filters, setFilters, resetFilters,
     removeExpense, loadExpenses, loadDashboard,
   } = useExpenseStore()
+
+  const mergedCategories = Array.from(new Set([...FIXED_CATEGORIES, ...categories]))
 
   const [showFilters, setShowFilters] = useState(false)
 
@@ -279,7 +301,7 @@ export default function ExpenseTable() {
                   className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
                 />
                 <datalist id="filter-category-suggestions">
-                  {categories.map(c => (
+                  {mergedCategories.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </datalist>

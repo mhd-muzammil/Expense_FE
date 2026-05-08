@@ -3,6 +3,25 @@ import useExpenseStore from '@/store/useExpenseStore'
 import type { Expense, ExpenseFormData } from '@/lib/api'
 import { X, Calendar, Tag, Building2, ArrowUpCircle, ArrowDownCircle, FileText, User, CreditCard } from 'lucide-react'
 
+const FIXED_CATEGORIES = [
+  'Salary monthly',
+  'Salary advance',
+  'Courier',
+  'Office rent',
+  'Room rent',
+  'Wifi recharge',
+  'Phone recharge',
+  'Eb',
+  'Travel',
+  'Water',
+  'Tea',
+  'Petty cash',
+  'Food',
+  'Transferred',
+  'Petrol Allowance',
+  'Petrol advance'
+]
+
 interface ExpenseFormProps {
   expense?: Expense | null
   onClose: () => void
@@ -10,10 +29,11 @@ interface ExpenseFormProps {
 
 export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
   const { branches, categories, addExpense, editExpense, submitting } = useExpenseStore()
+  const mergedCategories = Array.from(new Set([...FIXED_CATEGORIES, ...categories]))
 
   const [formData, setFormData] = useState<ExpenseFormData>({
     date: expense?.date || new Date().toISOString().split('T')[0],
-    category: expense?.category || categories[0] || '',
+    category: expense?.category || mergedCategories[0] || '',
     branch: expense?.branch_location || (branches[0]?.location || ''),
     credited_amount: expense?.credited_amount ? parseFloat(expense.credited_amount) : null,
     credit_remark: expense?.credit_remark || '',
@@ -138,7 +158,7 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
                 placeholder="Type or select category"
               />
               <datalist id="category-suggestions">
-                {categories.map((c) => (
+                {mergedCategories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </datalist>
