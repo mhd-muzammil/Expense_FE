@@ -22,6 +22,7 @@ import {
   type AuthUser,
   type PaymentModeBalance,
   fetchPaymentModeBalances,
+  uploadImport,
 } from '@/lib/api'
 
 interface Toast {
@@ -79,6 +80,7 @@ interface ExpenseStore {
   addExpense: (data: ExpenseFormData) => Promise<void>
   editExpense: (id: number, data: ExpenseFormData) => Promise<void>
   removeExpense: (id: number) => Promise<void>
+  importExpenses: (file: File) => Promise<void>
 
   addToast: (type: 'success' | 'error', message: string) => void
   removeToast: (id: string) => void
@@ -307,6 +309,24 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err) {
       get().addToast('error', 'Failed to delete expense')
+    }
+  },
+
+  importExpenses: async (file) => {
+    set({ submitting: true })
+    try {
+      const res = await uploadImport(file)
+      set({ submitting: false })
+      get().addToast('success', res.detail)
+      await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
+    } catch (err: any) {
+      set({ submitting: false })
+      let msg = 'Failed to import expenses'
+      if (err?.response?.data?.detail) {
+        msg = err.response.data.detail
+      }
+      get().addToast('error', msg)
+      throw err
     }
   },
 

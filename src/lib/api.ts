@@ -225,6 +225,16 @@ export const downloadExport = async (
   URL.revokeObjectURL(blobUrl)
 }
 
+export const uploadImport = async (file: File): Promise<{ detail: string; success_count: number; errors?: string[] }> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return api.post('/import/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }).then(res => res.data)
+}
+
 // Payment Mode Balances
 export interface PaymentModeBalance {
   id: number
