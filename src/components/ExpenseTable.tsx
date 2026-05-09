@@ -41,6 +41,7 @@ import {
   Calendar,
   Building2,
   Tag,
+  Upload,
 } from 'lucide-react'
 
 function SkeletonRow() {
@@ -59,7 +60,8 @@ export default function ExpenseTable() {
   const {
     expenses, totalCount, pageSize, loadingExpenses,
     branches, categories, filters, setFilters, resetFilters,
-    removeExpense, loadExpenses, loadDashboard,
+    removeExpense, loadExpenses, loadDashboard, importExpenses,
+    submitting,
   } = useExpenseStore()
 
   const mergedCategories = Array.from(new Set([...FIXED_CATEGORIES, ...categories]))
@@ -115,6 +117,18 @@ export default function ExpenseTable() {
     }
   }
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      await importExpenses(file)
+      e.target.value = ''
+    } catch (err) {
+      console.error('Import failed:', err)
+    }
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Toolbar */}
@@ -167,8 +181,24 @@ export default function ExpenseTable() {
               hover:bg-surface-50 dark:hover:bg-surface-700 transition-all"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span className="hidden sm:inline">Excel</span>
+            <span className="hidden sm:inline">Export Excel</span>
           </button>
+          <label
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl
+              bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700
+              text-sm font-medium text-surface-700 dark:text-surface-300
+              hover:bg-surface-50 dark:hover:bg-surface-700 cursor-pointer transition-all"
+          >
+            <Upload className="w-4 h-4 text-primary-500" />
+            <span className="hidden sm:inline">Import Excel</span>
+            <input
+              type="file"
+              accept=".xlsx,.csv"
+              onChange={handleImport}
+              className="hidden"
+              disabled={submitting}
+            />
+          </label>
         </div>
 
         {/* Advanced Filters Button */}
