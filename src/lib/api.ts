@@ -233,6 +233,7 @@ export interface PaymentModeBalance {
   current_balance: string
   total_credits: string
   total_debits: string
+  period_available?: string
 }
 
 export const fetchPaymentModeBalances = (params?: { fy?: string; month?: string; date_from?: string; date_to?: string }) => {
