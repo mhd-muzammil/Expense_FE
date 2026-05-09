@@ -1469,6 +1469,7 @@ export default function Dashboard() {
               const initial = parseFloat(bal.initial_balance)
               const credits = parseFloat(bal.total_credits || '0')
               const debits = parseFloat(bal.total_debits || '0')
+              const periodAvailable = parseFloat(bal.period_available || '0')
               const maxFlow = Math.max(credits, debits, 1)
               return (
                 <div key={bal.payment_mode} className="group/card relative rounded-xl p-5 border border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50 hover:shadow-lg hover:border-primary-200 dark:hover:border-primary-800 transition-all duration-300 overflow-hidden">
@@ -1526,10 +1527,20 @@ export default function Dashboard() {
 
                   {/* Current Balance */}
                   <div className="mb-4 relative z-10">
-                    <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Availabe Balance</p>
+                    <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Total Available</p>
                     <p className={`text-2xl font-black tracking-tight ${current >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                       {formatCurrency(current)}
                     </p>
+                  </div>
+
+                  {/* Period Available */}
+                  <div className="mb-4 relative z-10 border-t border-surface-100 dark:border-surface-700/50 pt-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Period Available</p>
+                      <p className={`text-sm font-bold ${periodAvailable >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {formatCurrency(periodAvailable)}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Credits & Debits Breakdown */}
