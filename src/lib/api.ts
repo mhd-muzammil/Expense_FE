@@ -179,6 +179,9 @@ export const updateExpense = (id: number, data: ExpenseFormData) =>
 export const deleteExpense = (id: number) =>
   api.delete(`/expenses/${id}/`).then(res => res.data)
 
+export const deleteAllExpenses = () =>
+  api.delete('/expenses/delete-all/').then(res => res.data)
+
 export const fetchDashboard = (filters: Filters = {}) => {
   const params = new URLSearchParams()
   Object.entries(filters).forEach(([key, value]) => {

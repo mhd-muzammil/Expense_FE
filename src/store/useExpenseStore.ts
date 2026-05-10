@@ -23,6 +23,7 @@ import {
   type PaymentModeBalance,
   fetchPaymentModeBalances,
   uploadImport,
+  deleteAllExpenses,
 } from '@/lib/api'
 
 interface Toast {
@@ -80,6 +81,7 @@ interface ExpenseStore {
   addExpense: (data: ExpenseFormData) => Promise<void>
   editExpense: (id: number, data: ExpenseFormData) => Promise<void>
   removeExpense: (id: number) => Promise<void>
+  removeAllExpenses: () => Promise<void>
   importExpenses: (file: File) => Promise<void>
 
   addToast: (type: 'success' | 'error', message: string) => void
@@ -312,20 +314,48 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     }
   },
 
+  removeAllExpenses: async () => {
+    set({ submitting: true })
+    try {
+      await deleteAllExpenses()
+      set({ submitting: false })
+      get().addToast('success', 'All data cleared successfully!')
+      get().setFilters({ page: 1 })
+      await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
+    } catch (err) {
+      set({ submitting: false })
+      get().addToast('error', 'Failed to clear data')
+    }
+  },
+
   importExpenses: async (file) => {
     set({ submitting: true })
     try {
       const res = await uploadImport(file)
       set({ submitting: false })
-      get().addToast('success', res.detail)
+      let msg = res.detail || 'Import completed'
+      if (res.errors && res.errors.length > 0) {
+        msg += ' | Errors: ' + res.errors.slice(0, 3).join('; ')
+        get().addToast('error', msg)
+      } else {
+        get().addToast('success', msg)
+      }
+      get().setFilters({ page: 1 })
       await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err: any) {
       set({ submitting: false })
       let msg = 'Failed to import expenses'
       if (err?.response?.data?.detail) {
         msg = err.response.data.detail
+        if (err.response.data.errors && err.response.data.errors.length > 0) {
+          msg += ' | ' + err.response.data.errors.slice(0, 3).join('; ')
+        }
       }
       get().addToast('error', msg)
+      // Still try to reload data in case some rows were imported
+      try {
+        await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
+      } catch (_) {}
       throw err
     }
   },
