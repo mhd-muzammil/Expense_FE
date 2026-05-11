@@ -1527,7 +1527,7 @@ export default function Dashboard() {
 
                   {/* Current Balance */}
                   <div className="mb-4 relative z-10">
-                    <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Total Available</p>
+                    <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest mb-1">Current Balance</p>
                     <p className={`text-2xl font-black tracking-tight ${current >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                       {formatCurrency(current)}
                     </p>
@@ -1536,7 +1536,7 @@ export default function Dashboard() {
                   {/* Period Available */}
                   <div className="mb-4 relative z-10 border-t border-surface-100 dark:border-surface-700/50 pt-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Period Available</p>
+                      <p className="text-[10px] font-bold text-surface-400 uppercase tracking-widest">Monthly Net Balance</p>
                       <p className={`text-sm font-bold ${periodAvailable >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                         {formatCurrency(periodAvailable)}
                       </p>
@@ -1606,7 +1606,7 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Initial Balance</span>
+                        <span className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Opening Balance</span>
                         <span className="text-xs font-bold text-surface-600 dark:text-surface-300">{formatCurrency(initial)}</span>
                       </div>
                     )}
