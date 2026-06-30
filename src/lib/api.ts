@@ -309,5 +309,52 @@ export const toggleBillingReminderPaid = (id: number) =>
 export const deleteBillingReminder = (id: number) =>
   api.delete(`/billing-reminders/${id}/delete/`)
 
+
+// Petty Cash
+export interface PettyCashDebit {
+  id: number
+  date: string
+  amount: string
+  remark: string
+  person: string
+  branch: number
+  branch_location: string
+  created_at: string
+}
+
+export interface PettyCashDebitFormData {
+  date: string
+  amount: number
+  remark: string
+  person: string
+  branch: string
+}
+
+export interface PettyCashSummary {
+  balance: string
+  total_credits: string
+  total_debits: string
+  credits: Expense[]
+  debits: PettyCashDebit[]
+}
+
+export const fetchPettyCashSummary = (filters: Filters = {}) => {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') {
+      params.set(key, String(value))
+    }
+  })
+  return api.get<PettyCashSummary>(`/petty-cash/summary/?${params.toString()}`).then(res => res.data)
+}
+
+export const createPettyCashDebit = (data: PettyCashDebitFormData) =>
+  api.post<PettyCashDebit>('/petty-cash-debits/', data).then(res => res.data)
+
+export const deletePettyCashDebit = (id: number) =>
+  api.delete(`/petty-cash-debits/${id}/`).then(res => res.data)
+
+
 export default api
+
 

@@ -3,7 +3,7 @@ import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
-import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense } from '@/lib/api'
+import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense, fetchPettyCashSummary, createPettyCashDebit, deletePettyCashDebit, type PettyCashDebit, type PettyCashDebitFormData, type PettyCashSummary } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -33,6 +33,7 @@ import {
   AlertCircle,
   Repeat,
   ArrowLeft,
+  Search,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -587,6 +588,608 @@ const FREQUENCY_COLORS: Record<string, string> = {
   yearly: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
   one_time: 'bg-surface-100 text-surface-600 dark:bg-surface-700 dark:text-surface-300',
 }
+
+function PettyCashDrawerSection() {
+  const { branches, filters } = useExpenseStore()
+  const [summary, setSummary] = useState<PettyCashSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [activeTab, setActiveTab] = useState<'debits' | 'credits'>('debits')
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  // Search & local filter states
+  const [searchTerm, setSearchTerm] = useState('')
+  const [localBranchFilter, setLocalBranchFilter] = useState('')
+  const [localDateFrom, setLocalDateFrom] = useState('')
+  const [localDateTo, setLocalDateTo] = useState('')
+  const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc')
+
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    amount: 0,
+    remark: '',
+    person: '',
+    branch: branches[0]?.location || '',
+  })
+
+  const loadSummary = async () => {
+    setLoading(true)
+    try {
+      const data = await fetchPettyCashSummary({
+        branch: filters.branch,
+        date_from: filters.date_from,
+        date_to: filters.date_to,
+      })
+      setSummary(data)
+    } catch (err) {
+      console.error('Failed to load petty cash summary:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSummary()
+  }, [filters.branch, filters.date_from, filters.date_to])
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.amount || formData.amount <= 0 || !formData.branch) return
+    setSubmitting(true)
+    try {
+      await createPettyCashDebit({
+        date: formData.date,
+        amount: formData.amount,
+        remark: formData.remark,
+        person: formData.person,
+        branch: formData.branch,
+      })
+      await loadSummary()
+      setShowAddForm(false)
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        amount: 0,
+        remark: '',
+        person: '',
+        branch: filters.branch || branches[0]?.location || '',
+      })
+    } catch (err) {
+      console.error('Failed to save petty cash debit:', err)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deletePettyCashDebit(id)
+      await loadSummary()
+      setDeletingId(null)
+    } catch (err) {
+      console.error('Failed to delete petty cash debit:', err)
+    }
+  }
+
+  // 0. Extract unique active branches from Petty Cash summary (credits and debits)
+  const availableBranches = useMemo(() => {
+    if (!summary) return []
+    const branchSet = new Set<string>()
+    summary.credits.forEach(c => {
+      if (c.branch_location) {
+        branchSet.add(c.branch_location.trim().toUpperCase())
+      }
+    })
+    summary.debits.forEach(d => {
+      if (d.branch_location) {
+        branchSet.add(d.branch_location.trim().toUpperCase())
+      }
+    })
+    return Array.from(branchSet).sort()
+  }, [summary])
+
+  // 1. Filtered Debits List
+  const filteredDebits = useMemo(() => {
+    if (!summary) return []
+    let list = [...summary.debits]
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase()
+      list = list.filter(item => 
+        (item.remark || '').toLowerCase().includes(term) ||
+        (item.person || '').toLowerCase().includes(term) ||
+        String(item.amount).includes(term)
+      )
+    }
+
+    if (!filters.branch && localBranchFilter) {
+      list = list.filter(item => (item.branch_location || '').trim().toUpperCase() === localBranchFilter.toUpperCase())
+    }
+
+    if (localDateFrom) {
+      list = list.filter(item => item.date >= localDateFrom)
+    }
+    if (localDateTo) {
+      list = list.filter(item => item.date <= localDateTo)
+    }
+
+    list.sort((a, b) => {
+      if (sortBy === 'date-desc') {
+        return new Date(b.date).getTime() - new Date(a.date).getTime()
+      }
+      if (sortBy === 'date-asc') {
+        return new Date(a.date).getTime() - new Date(b.date).getTime()
+      }
+      if (sortBy === 'amount-desc') {
+        return parseFloat(b.amount) - parseFloat(a.amount)
+      }
+      if (sortBy === 'amount-asc') {
+        return parseFloat(a.amount) - parseFloat(b.amount)
+      }
+      return 0
+    })
+
+    return list
+  }, [summary, searchTerm, localBranchFilter, localDateFrom, localDateTo, sortBy, filters.branch])
+
+  // 2. Filtered Credits List
+  const filteredCredits = useMemo(() => {
+    if (!summary) return []
+    let list = [...summary.credits]
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase()
+      list = list.filter(item => 
+        (item.debit_remark || item.credit_remark || '').toLowerCase().includes(term) ||
+        (item.debit_person || item.credit_person || '').toLowerCase().includes(term) ||
+        String(item.debited_amount || item.credited_amount || '').includes(term)
+      )
+    }
+
+    if (!filters.branch && localBranchFilter) {
+      list = list.filter(item => (item.branch_location || '').trim().toUpperCase() === localBranchFilter.toUpperCase())
+    }
+
+    if (localDateFrom) {
+      list = list.filter(item => item.date >= localDateFrom)
+    }
+    if (localDateTo) {
+      list = list.filter(item => item.date <= localDateTo)
+    }
+
+    list.sort((a, b) => {
+      if (sortBy === 'date-desc') {
+        return new Date(b.date).getTime() - new Date(a.date).getTime()
+      }
+      if (sortBy === 'date-asc') {
+        return new Date(a.date).getTime() - new Date(b.date).getTime()
+      }
+      if (sortBy === 'amount-desc') {
+        const amtA = parseFloat(a.debited_amount || a.credited_amount || '0')
+        const amtB = parseFloat(b.debited_amount || b.credited_amount || '0')
+        return amtB - amtA
+      }
+      if (sortBy === 'amount-asc') {
+        const amtA = parseFloat(a.debited_amount || a.credited_amount || '0')
+        const amtB = parseFloat(b.debited_amount || b.credited_amount || '0')
+        return amtA - amtB
+      }
+      return 0
+    })
+
+    return list
+  }, [summary, searchTerm, localBranchFilter, localDateFrom, localDateTo, sortBy, filters.branch])
+
+  // 3. Totals
+  const displayedCredits = useMemo(() => {
+    return filteredCredits.reduce((sum, item) => {
+      const amt = parseFloat(item.debited_amount || item.credited_amount || '0')
+      return sum + amt
+    }, 0)
+  }, [filteredCredits])
+
+  const displayedDebits = useMemo(() => {
+    return filteredDebits.reduce((sum, item) => {
+      const amt = parseFloat(item.amount) || 0
+      return sum + amt
+    }, 0)
+  }, [filteredDebits])
+
+  const displayedBalance = displayedCredits - displayedDebits
+  const isLocallyFiltered = !!(searchTerm.trim() || (!filters.branch && localBranchFilter) || localDateFrom || localDateTo)
+
+  if (loading && !summary) {
+    return (
+      <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 p-6 animate-pulse">
+        <div className="h-6 w-48 bg-surface-200 dark:bg-surface-700 rounded mb-4" />
+        <div className="h-24 bg-surface-100 dark:bg-surface-700/50 rounded mb-4" />
+        <div className="h-48 bg-surface-50 dark:bg-surface-900 rounded" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <Wallet className="w-4.5 h-4.5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-surface-900 dark:text-white">Petty Cash Drawer</h3>
+            <p className="text-[10px] text-surface-400 font-medium">
+              Track petty cash credits & expenditures
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setFormData(prev => ({
+              ...prev,
+              branch: filters.branch || branches[0]?.location || '',
+            }))
+            setShowAddForm(prev => !prev)
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+            bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
+            hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5" /> Record Spent Cash
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="p-4 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700/50">
+          <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1">
+            Petty Cash Balance {isLocallyFiltered && <span className="text-[9px] text-primary-500 font-bold lowercase italic">(filtered)</span>}
+          </p>
+          <p className={`text-2xl font-black ${displayedBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+            {formatCurrency(displayedBalance)}
+          </p>
+        </div>
+        <div className="p-4 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700/50">
+          <div className="flex items-center gap-1 mb-1">
+            <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
+            <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
+              Total Cash Added {isLocallyFiltered && <span className="text-[9px] text-primary-500 font-bold lowercase italic">(filtered)</span>}
+            </p>
+          </div>
+          <p className="text-xl font-bold text-surface-950 dark:text-white">
+            {formatCurrency(displayedCredits)}
+          </p>
+        </div>
+        <div className="p-4 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700/50">
+          <div className="flex items-center gap-1 mb-1">
+            <ArrowDownRight className="w-3.5 h-3.5 text-red-500" />
+            <p className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">
+              Total Cash Spent {isLocallyFiltered && <span className="text-[9px] text-primary-500 font-bold lowercase italic">(filtered)</span>}
+            </p>
+          </div>
+          <p className="text-xl font-bold text-surface-950 dark:text-white">
+            {formatCurrency(displayedDebits)}
+          </p>
+        </div>
+      </div>
+
+      {showAddForm && (
+        <form onSubmit={handleSave} className="mb-6 p-5 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-bold text-surface-900 dark:text-white">Record Petty Cash Spent (Debit)</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Date</label>
+              <input
+                type="date"
+                required
+                value={formData.date}
+                onChange={(e) => setFormData(f => ({ ...f, date: e.target.value }))}
+                className="px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Amount</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={formData.amount || ''}
+                onChange={(e) => setFormData(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))}
+                className="px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Spent Branch</label>
+              <select
+                required
+                value={formData.branch}
+                onChange={(e) => setFormData(f => ({ ...f, branch: e.target.value }))}
+                className="px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer"
+              >
+                {branches.map(b => (
+                  <option key={b.id} value={b.location}>{b.location}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Spent By (Person)</label>
+              <input
+                type="text"
+                placeholder="e.g. John Doe"
+                value={formData.person}
+                onChange={(e) => setFormData(f => ({ ...f, person: e.target.value }))}
+                className="px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+            </div>
+            <div className="sm:col-span-2 flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-surface-400 uppercase tracking-wider">Remark / Purpose</label>
+              <input
+                type="text"
+                placeholder="e.g. Bought tea and biscuits"
+                value={formData.remark}
+                onChange={(e) => setFormData(f => ({ ...f, remark: e.target.value }))}
+                className="px-3 py-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={submitting || !formData.amount}
+              className="px-4 py-2 rounded-lg text-sm font-bold bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+            >
+              {submitting ? 'Saving...' : 'Save Entry'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddForm(false)
+                setFormData({
+                  date: new Date().toISOString().split('T')[0],
+                  amount: 0,
+                  remark: '',
+                  person: '',
+                  branch: filters.branch || branches[0]?.location || '',
+                })
+              }}
+              className="px-4 py-2 rounded-lg text-sm font-bold bg-surface-200 dark:bg-surface-700 text-surface-650 dark:text-surface-300 hover:bg-surface-300 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Search and Filters Row */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[220px]">
+          <input
+            type="text"
+            placeholder="Search purpose or person..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-9 py-2 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700
+              text-xs text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+          />
+          <Search className="w-3.5 h-3.5 text-surface-400 absolute left-3 top-3" />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-2.5 text-surface-400 hover:text-surface-600 dark:hover:text-white cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Branch Filter */}
+        {!filters.branch ? (
+          <select
+            value={localBranchFilter}
+            onChange={(e) => setLocalBranchFilter(e.target.value)}
+            className="w-40 px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700
+              text-xs text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer"
+          >
+            <option value="">All Branches (Local)</option>
+            {availableBranches.map(branchName => (
+              <option key={branchName} value={branchName}>{branchName}</option>
+            ))}
+          </select>
+        ) : (
+          <div className="w-40 flex items-center px-3 py-2 rounded-xl bg-surface-100/50 dark:bg-surface-900/30 border border-surface-200 dark:border-surface-700 text-xs text-surface-400 font-medium">
+            Branch locked
+          </div>
+        )}
+
+        {/* Date Filter Range */}
+        <div className="flex items-center gap-1.5 bg-surface-50 dark:bg-surface-900 px-3 py-1.5 rounded-xl border border-surface-200 dark:border-surface-700">
+          <input
+            type="date"
+            value={localDateFrom}
+            onChange={(e) => setLocalDateFrom(e.target.value)}
+            className="w-28 bg-transparent text-xs text-surface-700 dark:text-surface-300 focus:outline-none cursor-pointer border-0 p-0"
+          />
+          <span className="text-[10px] text-surface-400 font-bold uppercase px-0.5 select-none">to</span>
+          <input
+            type="date"
+            value={localDateTo}
+            onChange={(e) => setLocalDateTo(e.target.value)}
+            className="w-28 bg-transparent text-xs text-surface-700 dark:text-surface-300 focus:outline-none cursor-pointer border-0 p-0"
+          />
+          {(localDateFrom || localDateTo) && (
+            <button
+              type="button"
+              onClick={() => { setLocalDateFrom(''); setLocalDateTo(''); }}
+              className="p-0.5 rounded hover:bg-surface-200 dark:hover:bg-surface-800 text-surface-450 hover:text-surface-700 cursor-pointer transition-colors"
+              title="Clear dates"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Sort Selector */}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as any)}
+          className="w-36 px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700
+            text-xs text-surface-700 dark:text-surface-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 cursor-pointer"
+        >
+          <option value="date-desc">Newest First</option>
+          <option value="date-asc">Oldest First</option>
+          <option value="amount-desc">Highest Amount</option>
+          <option value="amount-asc">Lowest Amount</option>
+        </select>
+      </div>
+
+      <div className="flex gap-2 border-b border-surface-100 dark:border-surface-700 mb-4">
+        <button
+          type="button"
+          onClick={() => setActiveTab('debits')}
+          className={`pb-2.5 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'debits'
+              ? 'border-indigo-500 text-indigo-600'
+              : 'border-transparent text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'
+          }`}
+        >
+          Spent Cash (Debits) ({filteredDebits.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('credits')}
+          className={`pb-2.5 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'credits'
+              ? 'border-indigo-500 text-indigo-600'
+              : 'border-transparent text-surface-400 hover:text-surface-600 dark:hover:text-surface-300'
+          }`}
+        >
+          Added Cash (Credits) ({filteredCredits.length})
+        </button>
+      </div>
+
+      <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+        {activeTab === 'debits' ? (
+          filteredDebits.length === 0 ? (
+            <div className="text-center py-8 text-surface-400 text-xs">
+              No matching spent cash entries (debits).
+            </div>
+          ) : (
+            <div className="divide-y divide-surface-100 dark:divide-surface-700/50">
+              {filteredDebits.map(debit => {
+                const amt = parseFloat(debit.amount) || 0
+                return (
+                  <div key={debit.id} className="py-3 flex items-start justify-between gap-3 group/item">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-surface-400">
+                          {new Date(debit.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                          {debit.branch_location}
+                        </span>
+                        {debit.person && (
+                          <span className="text-[10px] text-surface-500 font-medium">
+                            • By {debit.person}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-surface-800 dark:text-surface-200 italic">
+                        "{debit.remark || 'No description'}"
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-sm font-extrabold text-red-600 dark:text-red-400">
+                        -{formatCurrency(amt)}
+                      </span>
+                      {deletingId === debit.id ? (
+                        <div className="flex items-center gap-1 animate-in fade-in duration-200">
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(debit.id)}
+                            className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500 text-white hover:bg-red-650 transition-colors cursor-pointer"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingId(null)}
+                            className="p-0.5 rounded hover:bg-surface-200 dark:hover:bg-surface-700 cursor-pointer"
+                          >
+                            <X className="w-3 h-3 text-surface-400" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDeletingId(debit.id)}
+                          className="p-1 rounded opacity-0 group-hover/item:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-505 text-surface-400 transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        ) : (
+          filteredCredits.length === 0 ? (
+            <div className="text-center py-8 text-surface-400 text-xs">
+              No matching cash additions (credits).
+            </div>
+          ) : (
+            <div className="divide-y divide-surface-100 dark:divide-surface-700/50">
+              {filteredCredits.map(credit => {
+                const amt = parseFloat(credit.debited_amount || credit.credited_amount || '0')
+                const remark = credit.debit_remark || credit.credit_remark || 'Petty Cash Funding'
+                const person = credit.debit_person || credit.credit_person
+                return (
+                  <div key={credit.id} className="py-3 flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-surface-400">
+                          {new Date(credit.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                          {credit.branch_location}
+                        </span>
+                        {person && (
+                          <span className="text-[10px] text-surface-500 font-medium">
+                            • By {person}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-surface-650 dark:text-surface-200 italic">
+                        "{remark}"
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
+                        +{formatCurrency(amt)}
+                      </span>
+                      <span className="text-[9px] font-bold text-surface-400 block mt-0.5">
+                        {credit.category}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+              <p className="text-[10px] text-surface-400 text-center pt-3 italic">
+                * To edit/delete credit entries, use the main Expenses page.
+              </p>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
 
 function BillingRemindersSection() {
   const { branches } = useExpenseStore()
@@ -1617,6 +2220,9 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Petty Cash Drawer Section */}
+      <PettyCashDrawerSection />
 
       {/* Billing Reminders Section */}
       <BillingRemindersSection />
