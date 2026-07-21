@@ -52,9 +52,14 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice'
+
 export interface AuthUser {
   username: string
   is_staff: boolean
+  is_admin?: boolean
+  allowed_sections?: SectionKey[]
+  pnl_only?: boolean
 }
 
 export interface LoginResponse extends AuthUser {
@@ -190,6 +195,39 @@ export const fetchDashboard = (filters: Filters = {}) => {
     }
   })
   return api.get<DashboardData>(`/dashboard/?${params.toString()}`).then(res => res.data)
+}
+
+// ---------------------------------------------------------------------------
+// Profit & Loss report
+// ---------------------------------------------------------------------------
+export interface PnlRow {
+  category: string
+  monthly: Record<string, string> // month key 'YYYY-MM' -> amount
+  total: string
+}
+
+export interface ProfitLossData {
+  fy_start: number
+  fy_label: string
+  months: string[] // ordered 'YYYY-MM' keys, Apr -> Mar
+  available_fys: number[]
+  branches: string[]
+  income: PnlRow[]
+  expense: PnlRow[]
+  income_by_month: Record<string, string>
+  expense_by_month: Record<string, string>
+  net_by_month: Record<string, string>
+  total_income: string
+  total_expense: string
+  net_profit: string
+}
+
+export const fetchProfitLoss = (params: { fy?: number | string; branch?: string } = {}) => {
+  const query = new URLSearchParams()
+  if (params.fy !== undefined && params.fy !== '') query.set('fy', String(params.fy))
+  if (params.branch) query.set('branch', params.branch)
+  const qs = query.toString()
+  return api.get<ProfitLossData>(`/profit-loss/${qs ? '?' + qs : ''}`).then(res => res.data)
 }
 
 /**
@@ -353,6 +391,132 @@ export const createPettyCashDebit = (data: PettyCashDebitFormData) =>
 
 export const deletePettyCashDebit = (id: number) =>
   api.delete(`/petty-cash-debits/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Admin: user management
+// ---------------------------------------------------------------------------
+export interface SectionInfo {
+  key: SectionKey
+  label: string
+}
+
+export interface ManagedUser {
+  id: number
+  username: string
+  is_admin: boolean
+  is_active: boolean
+  allowed_sections: SectionKey[]
+  date_joined: string | null
+}
+
+export const fetchSections = () =>
+  api.get<SectionInfo[]>('/admin/sections/').then(res => res.data)
+
+export const fetchUsers = () =>
+  api.get<ManagedUser[]>('/admin/users/').then(res => res.data)
+
+export const createUser = (data: { username: string; password: string; allowed_sections: SectionKey[] }) =>
+  api.post<ManagedUser>('/admin/users/', data).then(res => res.data)
+
+export const updateUser = (
+  id: number,
+  data: Partial<{ allowed_sections: SectionKey[]; password: string; is_active: boolean }>,
+) => api.patch<ManagedUser>(`/admin/users/${id}/`, data).then(res => res.data)
+
+export const deleteUser = (id: number) =>
+  api.delete(`/admin/users/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Invoices
+// ---------------------------------------------------------------------------
+export type InvoiceDocType = 'auto' | 'tax_invoice' | 'bill_of_supply'
+
+export interface InvoiceItem {
+  id?: number
+  description: string
+  sub_description?: string
+  hsn_sac?: string
+  quantity: string | number
+  uom?: string
+  unit_price: string | number
+  gst_rate: string | number
+  position?: number
+  // read-only computed
+  taxable_value?: string
+  cgst_amount?: string
+  sgst_amount?: string
+  half_gst_rate?: string
+  line_total?: string
+}
+
+export interface Invoice {
+  id: number
+  invoice_number: string
+  doc_type: InvoiceDocType
+  resolved_doc_type: 'tax_invoice' | 'bill_of_supply'
+  customer_name: string
+  customer_phone: string
+  customer_address: string
+  customer_gstin: string
+  ship_to_name: string
+  ship_to_address: string
+  issue_date: string
+  due_date: string | null
+  place_of_supply: string
+  contact_name: string
+  terms: string
+  notes: string
+  items: InvoiceItem[]
+  taxable_total: string
+  cgst_total: string
+  sgst_total: string
+  grand_total: string
+  grand_total_raw: string
+  rounded_off: string
+  amount_in_words: string
+  created_at: string
+}
+
+export interface InvoiceFormData {
+  doc_type: InvoiceDocType
+  customer_name: string
+  customer_phone?: string
+  customer_address?: string
+  customer_gstin?: string
+  ship_to_name?: string
+  ship_to_address?: string
+  issue_date: string
+  due_date?: string | null
+  place_of_supply?: string
+  contact_name?: string
+  terms?: string
+  notes?: string
+  items: Array<{
+    description: string
+    sub_description?: string
+    hsn_sac?: string
+    quantity: number
+    uom?: string
+    unit_price: number
+    gst_rate: number
+  }>
+}
+
+export const fetchInvoices = (search?: string) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  return api.get<Invoice[]>(`/invoices/${qs}`).then(res => res.data)
+}
+
+export const fetchInvoice = (id: number) =>
+  api.get<Invoice>(`/invoices/${id}/`).then(res => res.data)
+
+export const createInvoice = (data: InvoiceFormData) =>
+  api.post<Invoice>('/invoices/', data).then(res => res.data)
+
+export const deleteInvoice = (id: number) =>
+  api.delete(`/invoices/${id}/`).then(res => res.data)
 
 
 export default api

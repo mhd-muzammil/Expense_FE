@@ -151,3 +151,35 @@ body {
   background: var(--color-danger) !important;
   color: white !important;
 }
+
+/* ---------------------------------------------------------------------------
+   Invoice printing — when printing, show ONLY the invoice document at full A4
+   size and hide the rest of the app UI.
+   --------------------------------------------------------------------------- */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .invoice-doc {
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+}

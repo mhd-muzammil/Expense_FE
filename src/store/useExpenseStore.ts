@@ -24,6 +24,8 @@ import {
   fetchPaymentModeBalances,
   uploadImport,
   deleteAllExpenses,
+  fetchProfitLoss,
+  type ProfitLossData,
 } from '@/lib/api'
 
 interface Toast {
@@ -44,6 +46,7 @@ interface ExpenseStore {
   expenses: Expense[]
   dashboard: DashboardData | null
   paymentModeBalances: PaymentModeBalance[]
+  pnl: ProfitLossData | null
   totalCount: number
   pageSize: number
 
@@ -51,15 +54,19 @@ interface ExpenseStore {
   loadingBranches: boolean
   loadingExpenses: boolean
   loadingDashboard: boolean
+  loadingPnl: boolean
   submitting: boolean
 
   // Filters
   filters: Filters
+  // P&L has its own filters (financial year + branch), independent of the
+  // global expense filters so switching tabs doesn't cross-contaminate.
+  pnlFilters: { fy?: number; branch?: string }
 
   // UI
   toasts: Toast[]
   theme: 'light' | 'dark'
-  activeTab: 'dashboard' | 'expenses'
+  activeTab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'admin'
 
   // Auth actions
   initAuth: () => Promise<void>
@@ -70,12 +77,14 @@ interface ExpenseStore {
   setBranches: (branches: Branch[]) => void
   setFilters: (filters: Partial<Filters>) => void
   resetFilters: () => void
+  setPnlFilters: (filters: Partial<{ fy?: number; branch?: string }>) => void
 
   loadBranches: () => Promise<void>
   loadCategories: () => Promise<void>
   loadExpenses: () => Promise<void>
   loadDashboard: () => Promise<void>
   loadPaymentModeBalances: () => Promise<void>
+  loadProfitLoss: () => Promise<void>
   loadAll: () => Promise<void>
 
   addExpense: (data: ExpenseFormData) => Promise<void>
@@ -88,7 +97,7 @@ interface ExpenseStore {
   removeToast: (id: string) => void
 
   toggleTheme: () => void
-  setActiveTab: (tab: 'dashboard' | 'expenses') => void
+  setActiveTab: (tab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'admin') => void
 }
 
 const useExpenseStore = create<ExpenseStore>((set, get) => ({
@@ -103,15 +112,18 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
   expenses: [],
   dashboard: null,
   paymentModeBalances: [],
+  pnl: null,
   totalCount: 0,
   pageSize: 50,
 
   loadingBranches: false,
   loadingExpenses: false,
   loadingDashboard: false,
+  loadingPnl: false,
   submitting: false,
 
   filters: {},
+  pnlFilters: {},
 
   toasts: [],
   theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'light',
@@ -158,8 +170,10 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       branches: [],
       expenses: [],
       dashboard: null,
+      pnl: null,
       totalCount: 0,
       filters: {},
+      pnlFilters: {},
       activeTab: 'dashboard',
     })
   },
@@ -180,6 +194,14 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     })
   },
   resetFilters: () => set({ filters: {} }),
+  setPnlFilters: (newFilters) => {
+    set((state) => {
+      const pnlFilters = { ...state.pnlFilters, ...newFilters }
+      if (pnlFilters.branch === undefined || pnlFilters.branch === '') delete pnlFilters.branch
+      if (pnlFilters.fy === undefined) delete pnlFilters.fy
+      return { pnlFilters }
+    })
+  },
 
   // Data loaders
   loadBranches: async () => {
@@ -242,15 +264,33 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     }
   },
 
+  loadProfitLoss: async () => {
+    set({ loadingPnl: true })
+    try {
+      const data = await fetchProfitLoss(get().pnlFilters)
+      set({ pnl: data, loadingPnl: false })
+    } catch (err) {
+      console.error('Failed to load profit & loss:', err)
+      set({ loadingPnl: false })
+      get().addToast('error', 'Failed to load P&L report')
+    }
+  },
+
   loadAll: async () => {
-    const { loadBranches, loadCategories, loadExpenses, loadDashboard, loadPaymentModeBalances } = get()
-    await Promise.all([
-      loadBranches(),
-      loadCategories(),
-      loadExpenses(),
-      loadDashboard(),
-      loadPaymentModeBalances(),
-    ])
+    const { user, loadBranches, loadCategories, loadExpenses, loadDashboard, loadPaymentModeBalances, loadProfitLoss } = get()
+    // Only load what the user is allowed to see — the backend returns 403 for
+    // sections they don't have, which would otherwise surface as error toasts.
+    const isAdmin = !!user?.is_admin
+    const allowed = isAdmin ? ['dashboard', 'expenses', 'pnl'] : (user?.allowed_sections ?? ['dashboard', 'expenses', 'pnl'])
+
+    const jobs: Promise<void>[] = []
+    if (allowed.includes('dashboard')) jobs.push(loadDashboard())
+    if (allowed.includes('pnl')) jobs.push(loadProfitLoss())
+    if (allowed.includes('expenses')) {
+      // The ledger view needs branches/categories/expenses/payment-modes.
+      jobs.push(loadBranches(), loadCategories(), loadExpenses(), loadPaymentModeBalances())
+    }
+    await Promise.all(jobs)
   },
 
   // CRUD
