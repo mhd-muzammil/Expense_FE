@@ -66,7 +66,7 @@ interface ExpenseStore {
   // UI
   toasts: Toast[]
   theme: 'light' | 'dark'
-  activeTab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'admin'
+  activeTab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'admin' | 'settings'
 
   // Auth actions
   initAuth: () => Promise<void>
@@ -90,14 +90,14 @@ interface ExpenseStore {
   addExpense: (data: ExpenseFormData) => Promise<void>
   editExpense: (id: number, data: ExpenseFormData) => Promise<void>
   removeExpense: (id: number) => Promise<void>
-  removeAllExpenses: () => Promise<void>
+  removeAllExpenses: (password: string) => Promise<void>
   importExpenses: (file: File) => Promise<void>
 
   addToast: (type: 'success' | 'error', message: string) => void
   removeToast: (id: string) => void
 
   toggleTheme: () => void
-  setActiveTab: (tab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'admin') => void
+  setActiveTab: (tab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'admin' | 'settings') => void
 }
 
 const useExpenseStore = create<ExpenseStore>((set, get) => ({
@@ -354,17 +354,19 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     }
   },
 
-  removeAllExpenses: async () => {
+  removeAllExpenses: async (password: string) => {
     set({ submitting: true })
     try {
-      await deleteAllExpenses()
+      await deleteAllExpenses(password)
       set({ submitting: false })
       get().addToast('success', 'All data cleared successfully!')
       get().setFilters({ page: 1 })
       await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err) {
       set({ submitting: false })
-      get().addToast('error', 'Failed to clear data')
+      // Rethrow so the caller (clear modal) can show the specific reason
+      // (incorrect password / no password configured).
+      throw err
     }
   },
 

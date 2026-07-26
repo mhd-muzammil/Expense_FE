@@ -69,24 +69,6 @@ export interface LoginResponse extends AuthUser {
 export const login = (username: string, password: string) =>
   api.post<LoginResponse>('/auth/login/', { username, password }).then(res => res.data)
 
-/**
- * Verifies a username/password WITHOUT going through the shared `api` instance,
- * so an expected 401 (wrong password) does NOT trigger the global logout
- * interceptor. Used to re-authenticate before destructive actions.
- */
-export const verifyPassword = async (username: string, password: string): Promise<boolean> => {
-  try {
-    await axios.post(
-      `${API_BASE_URL}/auth/login/`,
-      { username, password },
-      { headers: { 'Content-Type': 'application/json' } },
-    )
-    return true
-  } catch {
-    return false
-  }
-}
-
 export const logout = () =>
   api.post('/auth/logout/').then(() => undefined)
 
@@ -202,8 +184,15 @@ export const updateExpense = (id: number, data: ExpenseFormData) =>
 export const deleteExpense = (id: number) =>
   api.delete(`/expenses/${id}/`).then(res => res.data)
 
-export const deleteAllExpenses = () =>
-  api.delete('/expenses/delete-all/').then(res => res.data)
+export const deleteAllExpenses = (password: string) =>
+  api.delete('/expenses/delete-all/', { data: { password } }).then(res => res.data)
+
+// Clear-data password management (admin-only for set; status readable by admin)
+export const fetchClearDataPasswordStatus = () =>
+  api.get<{ is_set: boolean }>('/admin/clear-data-password/').then(res => res.data)
+
+export const setClearDataPassword = (password: string) =>
+  api.post<{ is_set: boolean }>('/admin/clear-data-password/', { password }).then(res => res.data)
 
 export const fetchDashboard = (filters: Filters = {}) => {
   const params = new URLSearchParams()

@@ -7,11 +7,12 @@ import ProfitLoss from '@/components/ProfitLoss'
 import RegionExpense from '@/components/RegionExpense'
 import Invoices from '@/components/Invoices'
 import UserManagement from '@/components/UserManagement'
+import Settings from '@/components/Settings'
 import Login from '@/components/Login'
-import { LayoutDashboard, Receipt, BarChart3, MapPin, FileText, Users, Loader2 } from 'lucide-react'
+import { LayoutDashboard, Receipt, BarChart3, MapPin, FileText, Users, Settings as SettingsIcon, Loader2 } from 'lucide-react'
 import type { SectionKey } from '@/lib/api'
 
-type TabKey = SectionKey | 'admin'
+type TabKey = SectionKey | 'admin' | 'settings'
 
 function App() {
   const { user, authReady, initAuth, loadAll, logout, activeTab, setActiveTab } = useExpenseStore()
@@ -67,6 +68,7 @@ function App() {
     ...(allowed.includes('region') ? [{ key: 'region' as TabKey, label: 'Region Expense', icon: <MapPin className="w-4 h-4" /> }] : []),
     ...(allowed.includes('invoice') ? [{ key: 'invoice' as TabKey, label: 'Invoice', icon: <FileText className="w-4 h-4" /> }] : []),
     ...(isAdmin ? [{ key: 'admin' as TabKey, label: 'Users', icon: <Users className="w-4 h-4" /> }] : []),
+    ...(isAdmin ? [{ key: 'settings' as TabKey, label: 'Settings', icon: <SettingsIcon className="w-4 h-4" /> }] : []),
   ]
 
   // Guard the active tab: if the current selection isn't available to this
@@ -101,6 +103,7 @@ function App() {
       {currentTab === 'region' && allowed.includes('region') && <RegionExpense />}
       {currentTab === 'invoice' && allowed.includes('invoice') && <Invoices />}
       {currentTab === 'admin' && isAdmin && <UserManagement />}
+      {currentTab === 'settings' && isAdmin && <Settings />}
     </Layout>
   )
 }

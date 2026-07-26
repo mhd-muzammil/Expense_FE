@@ -3,7 +3,7 @@ import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { getCategoryBadgeClass } from '@/lib/categories'
 import type { Expense } from '@/lib/api'
-import { downloadExport, verifyPassword } from '@/lib/api'
+import { downloadExport } from '@/lib/api'
 import ExpenseForm from './ExpenseForm'
 
 const FIXED_CATEGORIES = [
@@ -65,7 +65,7 @@ export default function ExpenseTable() {
     expenses, totalCount, pageSize, loadingExpenses,
     branches, categories, filters, setFilters, resetFilters,
     removeExpense, loadExpenses, loadDashboard, importExpenses, removeAllExpenses,
-    submitting, user,
+    submitting,
   } = useExpenseStore()
 
   const mergedCategories = Array.from(new Set([...FIXED_CATEGORIES, ...categories]))
@@ -150,25 +150,23 @@ export default function ExpenseTable() {
 
   const handleConfirmClear = async () => {
     if (!clearPassword) {
-      setClearError('Enter your password')
+      setClearError('Enter the clear-data password')
       return
     }
     setClearVerifying(true)
     setClearError('')
-    // Re-authenticate the current user against the backend before wiping data.
-    const ok = await verifyPassword(user?.username || '', clearPassword)
-    if (!ok) {
-      setClearVerifying(false)
-      setClearError('Incorrect password')
-      return
-    }
+    // The backend verifies the admin-configured clear-data password and only
+    // then wipes the data — a wrong password never deletes anything.
     try {
-      await removeAllExpenses()
+      await removeAllExpenses(clearPassword)
       setShowClearModal(false)
       setClearPassword('')
-    } catch (err) {
-      console.error('Clear all failed:', err)
-      setClearError('Failed to clear data. Please try again.')
+    } catch (err: unknown) {
+      const detail =
+        (err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined) || 'Failed to clear data. Please try again.'
+      setClearError(detail)
     } finally {
       setClearVerifying(false)
     }
@@ -699,7 +697,7 @@ export default function ExpenseTable() {
             </h3>
             <p className="text-sm text-surface-500 dark:text-surface-400 mb-5 text-center">
               This permanently deletes <strong>ALL</strong> expense data and cannot be undone.
-              Enter your account password to confirm.
+              Enter the clear-data password to confirm.
             </p>
 
             <div className="relative mb-2">
@@ -710,7 +708,7 @@ export default function ExpenseTable() {
                 value={clearPassword}
                 onChange={(e) => { setClearPassword(e.target.value); setClearError('') }}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !clearVerifying) handleConfirmClear() }}
-                placeholder="Your password"
+                placeholder="Clear-data password"
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm bg-surface-50 dark:bg-surface-900
                   border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white
                   focus:outline-none focus:ring-2 focus:ring-red-500"
