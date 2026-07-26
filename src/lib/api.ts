@@ -69,6 +69,24 @@ export interface LoginResponse extends AuthUser {
 export const login = (username: string, password: string) =>
   api.post<LoginResponse>('/auth/login/', { username, password }).then(res => res.data)
 
+/**
+ * Verifies a username/password WITHOUT going through the shared `api` instance,
+ * so an expected 401 (wrong password) does NOT trigger the global logout
+ * interceptor. Used to re-authenticate before destructive actions.
+ */
+export const verifyPassword = async (username: string, password: string): Promise<boolean> => {
+  try {
+    await axios.post(
+      `${API_BASE_URL}/auth/login/`,
+      { username, password },
+      { headers: { 'Content-Type': 'application/json' } },
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
 export const logout = () =>
   api.post('/auth/logout/').then(() => undefined)
 
