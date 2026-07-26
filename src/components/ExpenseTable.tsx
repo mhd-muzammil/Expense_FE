@@ -42,10 +42,6 @@ import {
   Building2,
   Tag,
   Upload,
-  MoreVertical,
-  Lock,
-  Loader2,
-  AlertTriangle,
 } from 'lucide-react'
 
 function SkeletonRow() {
@@ -64,7 +60,7 @@ export default function ExpenseTable() {
   const {
     expenses, totalCount, pageSize, loadingExpenses,
     branches, categories, filters, setFilters, resetFilters,
-    removeExpense, loadExpenses, loadDashboard, importExpenses, removeAllExpenses,
+    removeExpense, loadExpenses, loadDashboard, importExpenses,
     submitting,
   } = useExpenseStore()
 
@@ -77,14 +73,6 @@ export default function ExpenseTable() {
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState(filters.search || '')
-
-  // "Clear All Data" is hidden behind a ⋯ menu + password gate (the user's own
-  // account password, verified against the backend before wiping anything).
-  const [showDataMenu, setShowDataMenu] = useState(false)
-  const [showClearModal, setShowClearModal] = useState(false)
-  const [clearPassword, setClearPassword] = useState('')
-  const [clearVerifying, setClearVerifying] = useState(false)
-  const [clearError, setClearError] = useState('')
 
   // 1. Reactive: Fetch expenses whenever filters change
   useEffect(() => {
@@ -138,37 +126,6 @@ export default function ExpenseTable() {
       e.target.value = ''
     } catch (err) {
       console.error('Import failed:', err)
-    }
-  }
-
-  const openClearModal = () => {
-    setShowDataMenu(false)
-    setClearPassword('')
-    setClearError('')
-    setShowClearModal(true)
-  }
-
-  const handleConfirmClear = async () => {
-    if (!clearPassword) {
-      setClearError('Enter the clear-data password')
-      return
-    }
-    setClearVerifying(true)
-    setClearError('')
-    // The backend verifies the admin-configured clear-data password and only
-    // then wipes the data — a wrong password never deletes anything.
-    try {
-      await removeAllExpenses(clearPassword)
-      setShowClearModal(false)
-      setClearPassword('')
-    } catch (err: unknown) {
-      const detail =
-        (err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined) || 'Failed to clear data. Please try again.'
-      setClearError(detail)
-    } finally {
-      setClearVerifying(false)
     }
   }
 
@@ -243,37 +200,6 @@ export default function ExpenseTable() {
             />
           </label>
 
-          {/* Overflow menu — hides the destructive "Clear All Data" action. */}
-          <div className="relative">
-            <button
-              onClick={() => setShowDataMenu((v) => !v)}
-              disabled={submitting}
-              className="flex items-center justify-center px-3 py-2.5 rounded-xl
-                bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700
-                text-surface-500 dark:text-surface-400
-                hover:bg-surface-50 dark:hover:bg-surface-700 transition-all
-                disabled:opacity-50 disabled:cursor-not-allowed"
-              title="More options"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-            {showDataMenu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowDataMenu(false)} />
-                <div className="absolute right-0 mt-2 w-52 z-20 rounded-xl bg-white dark:bg-surface-800
-                  border border-surface-200 dark:border-surface-700 shadow-lg py-1 animate-fade-in">
-                  <button
-                    onClick={openClearModal}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium
-                      text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Clear All Data
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
         </div>
 
         {/* Advanced Filters Button */}
@@ -681,67 +607,6 @@ export default function ExpenseTable() {
         </div>
       )}
 
-      {/* Clear All Data — password-gated */}
-      {showClearModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => !clearVerifying && setShowClearModal(false)}
-          />
-          <div className="relative w-full max-w-sm bg-white dark:bg-surface-800 rounded-2xl shadow-2xl animate-fade-in p-6">
-            <div className="w-12 h-12 mx-auto rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center mb-4">
-              <AlertTriangle className="w-6 h-6 text-red-500" />
-            </div>
-            <h3 className="text-lg font-semibold text-surface-900 dark:text-white mb-2 text-center">
-              Clear All Data?
-            </h3>
-            <p className="text-sm text-surface-500 dark:text-surface-400 mb-5 text-center">
-              This permanently deletes <strong>ALL</strong> expense data and cannot be undone.
-              Enter the clear-data password to confirm.
-            </p>
-
-            <div className="relative mb-2">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
-              <input
-                type="password"
-                autoFocus
-                value={clearPassword}
-                onChange={(e) => { setClearPassword(e.target.value); setClearError('') }}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !clearVerifying) handleConfirmClear() }}
-                placeholder="Clear-data password"
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm bg-surface-50 dark:bg-surface-900
-                  border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white
-                  focus:outline-none focus:ring-2 focus:ring-red-500"
-              />
-            </div>
-            {clearError && (
-              <p className="text-xs text-red-600 dark:text-red-400 mb-2">{clearError}</p>
-            )}
-
-            <div className="flex gap-3 mt-4">
-              <button
-                onClick={() => setShowClearModal(false)}
-                disabled={clearVerifying}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-surface-200 dark:border-surface-700
-                  text-sm font-medium text-surface-700 dark:text-surface-300
-                  hover:bg-surface-50 dark:hover:bg-surface-700 transition-all disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmClear}
-                disabled={clearVerifying}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-                  bg-red-500 hover:bg-red-600 text-sm font-medium text-white transition-all
-                  active:scale-[0.98] disabled:opacity-60"
-              >
-                {clearVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                Delete Everything
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
