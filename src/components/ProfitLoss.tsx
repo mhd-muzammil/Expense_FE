@@ -14,16 +14,12 @@ function monthLabel(key: string): string {
   return `${MONTH_ABBR[mi]} ${y.slice(2)}`
 }
 
-// Compact amount for dense grid cells: ₹1.2L, ₹45k, ₹0 rendered as "–".
-function compact(value: string | number): string {
+// Full amount for grid cells with Indian grouping, e.g. ₹14,62,000. Zero → "–".
+function fullAmount(value: string | number): string {
   const n = typeof value === 'string' ? parseFloat(value) : value
   if (!n || isNaN(n)) return '–'
-  const abs = Math.abs(n)
   const sign = n < 0 ? '-' : ''
-  if (abs >= 1e7) return `${sign}${CURRENCY_SYMBOL}${(abs / 1e7).toFixed(2)}Cr`
-  if (abs >= 1e5) return `${sign}${CURRENCY_SYMBOL}${(abs / 1e5).toFixed(2)}L`
-  if (abs >= 1e3) return `${sign}${CURRENCY_SYMBOL}${(abs / 1e3).toFixed(1)}k`
-  return `${sign}${CURRENCY_SYMBOL}${abs.toFixed(0)}`
+  return `${sign}${CURRENCY_SYMBOL}${Math.abs(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
 }
 
 export default function ProfitLoss() {
@@ -186,7 +182,6 @@ export default function ProfitLoss() {
       </div>
 
       <p className="text-xs text-surface-400 dark:text-surface-500 mt-3 px-1">
-        Amounts shown compact ({CURRENCY_SYMBOL}k / {CURRENCY_SYMBOL}L / {CURRENCY_SYMBOL}Cr). Hover a cell for the exact value.
         Income &amp; expense are auto-classified from the ledger; branches merged case-insensitively.
       </p>
     </div>
@@ -262,7 +257,7 @@ function DataRow({ row, months, tone }: { row: PnlRow; months: string[]; tone: '
             title={n ? formatCurrency(raw) : ''}
             className={`p-3 text-right tabular-nums whitespace-nowrap ${n ? amountColor : 'text-surface-300 dark:text-surface-600'}`}
           >
-            {compact(raw)}
+            {fullAmount(raw)}
           </td>
         )
       })}
@@ -270,7 +265,7 @@ function DataRow({ row, months, tone }: { row: PnlRow; months: string[]; tone: '
         title={formatCurrency(row.total)}
         className={`sticky right-0 z-10 bg-white dark:bg-surface-800 p-3 text-right font-semibold tabular-nums whitespace-nowrap border-l border-surface-100 dark:border-surface-700 ${amountColor}`}
       >
-        {compact(row.total)}
+        {fullAmount(row.total)}
       </td>
     </tr>
   )
@@ -303,12 +298,12 @@ function TotalsRow({
         const n = parseFloat(raw)
         return (
           <td key={mk} title={n ? formatCurrency(raw) : ''} className={`p-3 text-right tabular-nums whitespace-nowrap ${n ? color : 'text-surface-300 dark:text-surface-600'}`}>
-            {compact(raw)}
+            {fullAmount(raw)}
           </td>
         )
       })}
       <td title={formatCurrency(total)} className={`sticky right-0 z-10 ${bg} p-3 text-right font-bold tabular-nums whitespace-nowrap border-l border-surface-200 dark:border-surface-700 ${color}`}>
-        {compact(total)}
+        {fullAmount(total)}
       </td>
     </tr>
   )
@@ -332,7 +327,7 @@ function NetRow({ byMonth, months, total }: { byMonth: Record<string, string>; m
             : 'text-red-400'
         return (
           <td key={mk} title={n ? formatCurrency(raw) : ''} className={`p-3.5 text-right tabular-nums whitespace-nowrap ${cls}`}>
-            {compact(raw)}
+            {fullAmount(raw)}
           </td>
         )
       })}
@@ -340,7 +335,7 @@ function NetRow({ byMonth, months, total }: { byMonth: Record<string, string>; m
         title={formatCurrency(total)}
         className={`sticky right-0 z-10 bg-surface-800 dark:bg-surface-900 p-3.5 text-right tabular-nums whitespace-nowrap border-l border-surface-600 ${totalProfit ? 'text-emerald-400' : 'text-red-400'}`}
       >
-        {compact(total)}
+        {fullAmount(total)}
       </td>
     </tr>
   )
