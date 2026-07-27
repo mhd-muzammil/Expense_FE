@@ -3,27 +3,8 @@ import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { getCategoryBadgeClass } from '@/lib/categories'
 import type { Expense } from '@/lib/api'
-import { downloadExport } from '@/lib/api'
+import { downloadExport, fetchExpenseFilterOptions } from '@/lib/api'
 import ExpenseForm from './ExpenseForm'
-
-const FIXED_CATEGORIES = [
-  'Salary monthly',
-  'Salary advance',
-  'Courier',
-  'Office rent',
-  'Room rent',
-  'Wifi recharge',
-  'Phone recharge',
-  'Eb',
-  'Travel',
-  'Water',
-  'Tea',
-  'Petty cash',
-  'Food',
-  'Transferred',
-  'Petrol Allowance',
-  'Petrol advance'
-]
 
 import {
   Plus,
@@ -59,12 +40,33 @@ function SkeletonRow() {
 export default function ExpenseTable() {
   const {
     expenses, totalCount, pageSize, loadingExpenses,
-    branches, categories, filters, setFilters, resetFilters,
+    filters, setFilters, resetFilters,
     removeExpense, loadExpenses, loadDashboard, importExpenses,
     submitting,
   } = useExpenseStore()
 
-  const mergedCategories = Array.from(new Set([...FIXED_CATEGORIES, ...categories]))
+  // Filter dropdown options = branches & categories ACTUALLY used in expense
+  // entries (fetched from the backend, already de-duped/cleaned/title-cased).
+  const [filterOptions, setFilterOptions] = useState<{ branches: string[]; categories: string[] }>({
+    branches: [],
+    categories: [],
+  })
+
+  // Case-insensitive match so an active filter set with different casing still
+  // shows as selected, and can be listed even if not in the fetched options.
+  const canonB = (s: string) => (s || '').trim().replace(/\s+/g, ' ').toUpperCase()
+  const branchOptions = filterOptions.branches
+  const currentBranch = filters.branch || ''
+  const branchInOptions = branchOptions.some((o) => canonB(o) === canonB(currentBranch))
+  const selectedBranch = currentBranch
+    ? (branchOptions.find((o) => canonB(o) === canonB(currentBranch)) ?? currentBranch)
+    : ''
+  const categoryOptions = filterOptions.categories
+  const currentCategory = filters.category || ''
+  const categoryInOptions = categoryOptions.some((o) => canonB(o) === canonB(currentCategory))
+  const selectedCategory = currentCategory
+    ? (categoryOptions.find((o) => canonB(o) === canonB(currentCategory)) ?? currentCategory)
+    : ''
 
   const [showFilters, setShowFilters] = useState(false)
 
@@ -95,6 +97,14 @@ export default function ExpenseTable() {
     }, 500)
     return () => clearTimeout(timer)
   }, [searchTerm, filters.search, setFilters])
+
+  // 4. Load the filter dropdown options (branches/categories used in entries)
+  //    when the filter panel is opened, so they always reflect current data.
+  useEffect(() => {
+    if (showFilters) {
+      fetchExpenseFilterOptions().then(setFilterOptions).catch(() => {})
+    }
+  }, [showFilters])
 
   const currentPage = filters.page || 1
   const totalPages = Math.max(1, Math.ceil(totalCount / Math.max(pageSize, 1)))
@@ -295,22 +305,22 @@ export default function ExpenseTable() {
                 Branch
               </label>
               <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
-                <input
-                  type="text"
-                  list="filter-branch-suggestions"
-                  placeholder="All Branches"
-                  value={filters.branch || ''}
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+                <select
+                  value={selectedBranch}
                   onChange={(e) => {
                     setFilters({ branch: e.target.value, page: 1 })
                   }}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
-                />
-                <datalist id="filter-branch-suggestions">
-                  {branches.map(b => (
-                    <option key={b.id} value={b.location}>{b.location}</option>
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all appearance-none cursor-pointer"
+                >
+                  <option value="">All Branches</option>
+                  {currentBranch && !branchInOptions && (
+                    <option value={currentBranch}>{currentBranch}</option>
+                  )}
+                  {branchOptions.map((loc) => (
+                    <option key={loc} value={loc}>{loc}</option>
                   ))}
-                </datalist>
+                </select>
               </div>
             </div>
 
@@ -320,22 +330,22 @@ export default function ExpenseTable() {
                 Category
               </label>
               <div className="relative">
-                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400" />
-                <input
-                  type="text"
-                  list="filter-category-suggestions"
-                  placeholder="All Categories"
-                  value={filters.category || ''}
+                <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+                <select
+                  value={selectedCategory}
                   onChange={(e) => {
                     setFilters({ category: e.target.value, page: 1 })
                   }}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all"
-                />
-                <datalist id="filter-category-suggestions">
-                  {mergedCategories.map(c => (
+                  className="w-full pl-9 pr-8 py-2 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all appearance-none cursor-pointer"
+                >
+                  <option value="">All Categories</option>
+                  {currentCategory && !categoryInOptions && (
+                    <option value={currentCategory}>{currentCategory}</option>
+                  )}
+                  {categoryOptions.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
-                </datalist>
+                </select>
               </div>
             </div>
           </div>

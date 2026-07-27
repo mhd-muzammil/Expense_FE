@@ -1,9 +1,9 @@
-import { useEffect, useMemo } from 'react'
-import { BarChart3, TrendingUp, TrendingDown, Building2, Calendar } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { BarChart3, TrendingUp, TrendingDown, Building2, Calendar, X, Loader2, Receipt } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
-import type { PnlRow } from '@/lib/api'
+import { fetchExpenses, type PnlRow, type Expense } from '@/lib/api'
 
 // 'YYYY-MM' -> 'Apr 25'
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -22,8 +22,47 @@ function fullAmount(value: string | number): string {
   return `${sign}${CURRENCY_SYMBOL}${Math.abs(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
 }
 
+// Canonical category form — MUST mirror the backend's _pnl_canonical (trim +
+// collapse whitespace + upper) so a drill matches exactly what the cell summed.
+function canon(s: string): string {
+  return String(s || '').trim().replace(/\s+/g, ' ').toUpperCase()
+}
+
+// First & last calendar day of a 'YYYY-MM' month, as 'YYYY-MM-DD'.
+function monthBounds(mk: string): [string, string] {
+  const [y, m] = mk.split('-').map(Number)
+  const last = new Date(y, m, 0).getDate()
+  return [`${mk}-01`, `${mk}-${String(last).padStart(2, '0')}`]
+}
+
+// What a clicked P&L cell drills into.
+interface Drill {
+  category: string
+  kind: 'income' | 'expense'
+  label: string
+  dateFrom: string
+  dateTo: string
+  branch?: string
+}
+
+// Fetch every expense in a date range (+ optional branch), paging through the
+// paginated list endpoint. Category is filtered client-side (case-insensitive)
+// so it matches the P&L merge.
+async function fetchAllEntries(params: { branch?: string; date_from: string; date_to: string }): Promise<Expense[]> {
+  const all: Expense[] = []
+  let page = 1
+  for (;;) {
+    const res = await fetchExpenses({ ...params, page })
+    all.push(...res.results)
+    if (!res.next || res.results.length === 0 || page > 60) break
+    page++
+  }
+  return all
+}
+
 export default function ProfitLoss() {
   const { pnl, loadingPnl, pnlFilters, setPnlFilters, loadProfitLoss } = useExpenseStore()
+  const [drill, setDrill] = useState<Drill | null>(null)
 
   // Load on mount and whenever the P&L filters (fy / branch) change.
   useEffect(() => {
@@ -146,7 +185,7 @@ export default function ProfitLoss() {
                 {/* INCOME */}
                 <SectionHeader label="Income" months={months.length} tone="income" />
                 {pnl!.income.map((row) => (
-                  <DataRow key={`inc-${row.category}`} row={row} months={months} tone="income" />
+                  <DataRow key={`inc-${row.category}`} row={row} months={months} tone="income" branch={pnlFilters.branch} onDrill={setDrill} />
                 ))}
                 <TotalsRow
                   label="Total Income"
@@ -159,7 +198,7 @@ export default function ProfitLoss() {
                 {/* EXPENSE */}
                 <SectionHeader label="Expense" months={months.length} tone="expense" />
                 {pnl!.expense.map((row) => (
-                  <DataRow key={`exp-${row.category}`} row={row} months={months} tone="expense" />
+                  <DataRow key={`exp-${row.category}`} row={row} months={months} tone="expense" branch={pnlFilters.branch} onDrill={setDrill} />
                 ))}
                 <TotalsRow
                   label="Total Expense"
@@ -182,8 +221,11 @@ export default function ProfitLoss() {
       </div>
 
       <p className="text-xs text-surface-400 dark:text-surface-500 mt-3 px-1">
-        Income &amp; expense are auto-classified from the ledger; branches merged case-insensitively.
+        Click any amount to see the entries behind it. Income &amp; expense are auto-classified from the
+        ledger; branches merged case-insensitively.
       </p>
+
+      {drill && <PnlDrillModal drill={drill} onClose={() => setDrill(null)} />}
     </div>
   )
 }
@@ -239,7 +281,13 @@ function SectionHeader({ label, months, tone }: { label: string; months: number;
   )
 }
 
-function DataRow({ row, months, tone }: { row: PnlRow; months: string[]; tone: 'income' | 'expense' }) {
+function DataRow({ row, months, tone, branch, onDrill }: {
+  row: PnlRow
+  months: string[]
+  tone: 'income' | 'expense'
+  branch?: string
+  onDrill: (d: Drill) => void
+}) {
   const amountColor = tone === 'income'
     ? 'text-emerald-600 dark:text-emerald-400'
     : 'text-red-600 dark:text-red-400'
@@ -251,19 +299,30 @@ function DataRow({ row, months, tone }: { row: PnlRow; months: string[]; tone: '
       {months.map((mk) => {
         const raw = row.monthly[mk] ?? '0'
         const n = parseFloat(raw)
+        if (!n) {
+          return <td key={mk} className="p-3 text-right tabular-nums whitespace-nowrap text-surface-300 dark:text-surface-600">–</td>
+        }
+        const [from, to] = monthBounds(mk)
         return (
           <td
             key={mk}
-            title={n ? formatCurrency(raw) : ''}
-            className={`p-3 text-right tabular-nums whitespace-nowrap ${n ? amountColor : 'text-surface-300 dark:text-surface-600'}`}
+            title="Click to see entries"
+            onClick={() => onDrill({ category: row.category, kind: tone, label: `${row.category} · ${monthLabel(mk)}`, dateFrom: from, dateTo: to, branch })}
+            className={`p-3 text-right tabular-nums whitespace-nowrap cursor-pointer hover:underline underline-offset-2 ${amountColor}`}
           >
             {fullAmount(raw)}
           </td>
         )
       })}
       <td
-        title={formatCurrency(row.total)}
-        className={`sticky right-0 z-10 bg-white dark:bg-surface-800 p-3 text-right font-semibold tabular-nums whitespace-nowrap border-l border-surface-100 dark:border-surface-700 ${amountColor}`}
+        title="Click to see entries"
+        onClick={() => {
+          if (!parseFloat(row.total) || months.length === 0) return
+          const [from] = monthBounds(months[0])
+          const [, to] = monthBounds(months[months.length - 1])
+          onDrill({ category: row.category, kind: tone, label: `${row.category} · Full year`, dateFrom: from, dateTo: to, branch })
+        }}
+        className={`sticky right-0 z-10 bg-white dark:bg-surface-800 p-3 text-right font-semibold tabular-nums whitespace-nowrap border-l border-surface-100 dark:border-surface-700 cursor-pointer hover:underline underline-offset-2 ${amountColor}`}
       >
         {fullAmount(row.total)}
       </td>
@@ -347,6 +406,107 @@ function GridSkeleton() {
       {Array.from({ length: 10 }).map((_, i) => (
         <div key={i} className="skeleton h-9 rounded-lg" style={{ animationDelay: `${i * 40}ms` }} />
       ))}
+    </div>
+  )
+}
+
+// Drill-down modal: lists the individual expense entries that make up a P&L cell.
+function PnlDrillModal({ drill, onClose }: { drill: Drill; onClose: () => void }) {
+  const [entries, setEntries] = useState<Expense[]>([])
+  const [loading, setLoading] = useState(true)
+  const isIncome = drill.kind === 'income'
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    fetchAllEntries({ branch: drill.branch, date_from: drill.dateFrom, date_to: drill.dateTo })
+      .then((rows) => {
+        if (!alive) return
+        const target = canon(drill.category)
+        const filtered = rows
+          .filter((e) =>
+            canon(e.category) === target &&
+            (isIncome ? parseFloat(e.credited_amount || '0') > 0 : parseFloat(e.debited_amount || '0') > 0),
+          )
+          .sort((a, b) => a.date.localeCompare(b.date))
+        setEntries(filtered)
+      })
+      .catch(() => alive && setEntries([]))
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [drill, isIncome])
+
+  const amountOf = (e: Expense) => parseFloat((isIncome ? e.credited_amount : e.debited_amount) || '0')
+  const total = entries.reduce((s, e) => s + amountOf(e), 0)
+  const amtColor = isIncome ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-lg max-h-[85vh] flex flex-col bg-white dark:bg-surface-800 rounded-2xl shadow-2xl animate-fade-in overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700">
+          <div>
+            <h3 className="font-bold text-surface-900 dark:text-white">{drill.label}</h3>
+            <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">
+              {isIncome ? 'Income' : 'Expense'} entries{drill.branch ? ` · ${drill.branch}` : ''}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700">
+            <X className="w-5 h-5 text-surface-500" />
+          </button>
+        </div>
+
+        {/* Total */}
+        <div className="px-5 py-3 flex items-center justify-between bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700">
+          <span className="text-sm font-medium text-surface-500 dark:text-surface-400">
+            {loading ? 'Loading…' : `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`}
+          </span>
+          <span className={`text-lg font-bold ${amtColor}`}>{formatCurrency(total)}</span>
+        </div>
+
+        {/* List */}
+        <div className="overflow-y-auto custom-scrollbar flex-1">
+          {loading ? (
+            <div className="p-5 space-y-3">
+              {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton h-14 rounded-lg" />)}
+            </div>
+          ) : entries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Receipt className="w-10 h-10 text-surface-300 dark:text-surface-600 mb-2" />
+              <p className="text-sm text-surface-500 dark:text-surface-400">No entries found</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-surface-100 dark:divide-surface-700/50">
+              {entries.map((e) => {
+                const remark = (isIncome ? e.credit_remark : e.debit_remark) || ''
+                const person = (isIncome ? e.credit_person : e.debit_person) || ''
+                const mode = (isIncome ? e.credit_payment_mode : e.debit_payment_mode) || ''
+                return (
+                  <div key={e.id} className="px-5 py-3 hover:bg-surface-50/60 dark:hover:bg-surface-700/30 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-surface-800 dark:text-surface-200 truncate">
+                          {remark || e.category}
+                        </div>
+                        <div className="text-xs text-surface-400 dark:text-surface-500 mt-0.5 flex flex-wrap gap-x-2">
+                          <span>{formatDate(e.date)}</span>
+                          {e.branch_location && <span>· {e.branch_location}</span>}
+                          {person && <span>· {person}</span>}
+                          {mode && <span>· {mode}</span>}
+                        </div>
+                      </div>
+                      <span className={`text-sm font-semibold tabular-nums whitespace-nowrap ${amtColor}`}>
+                        {formatCurrency(amountOf(e))}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

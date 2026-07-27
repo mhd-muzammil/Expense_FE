@@ -4,7 +4,7 @@ import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
 import { ExpenseDetailModal } from '@/components/BranchCard'
-import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense, fetchPettyCashSummary, createPettyCashDebit, deletePettyCashDebit, type PettyCashDebit, type PettyCashDebitFormData, type PettyCashSummary } from '@/lib/api'
+import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense, fetchPettyCashSummary, createPettyCashDebit, updatePettyCashDebit, deletePettyCashDebit, type PettyCashDebit, type PettyCashDebitFormData, type PettyCashSummary } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -188,6 +188,7 @@ function PettyCashDrawerSection() {
   const [submitting, setSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState<'debits' | 'credits'>('debits')
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
 
   // Search & local filter states
   const [searchTerm, setSearchTerm] = useState('')
@@ -224,27 +225,50 @@ function PettyCashDrawerSection() {
     loadSummary()
   }, [filters.branch, filters.date_from, filters.date_to])
 
+  const resetForm = () => {
+    setEditingId(null)
+    setFormData({
+      date: new Date().toISOString().split('T')[0],
+      amount: 0,
+      remark: '',
+      person: '',
+      branch: filters.branch || branches[0]?.location || '',
+    })
+  }
+
+  const startEdit = (debit: PettyCashDebit) => {
+    setEditingId(debit.id)
+    setDeletingId(null)
+    setFormData({
+      date: debit.date,
+      amount: parseFloat(debit.amount) || 0,
+      remark: debit.remark || '',
+      person: debit.person || '',
+      branch: debit.branch_location || branches[0]?.location || '',
+    })
+    setShowAddForm(true)
+  }
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.amount || formData.amount <= 0 || !formData.branch) return
     setSubmitting(true)
     try {
-      await createPettyCashDebit({
+      const payload = {
         date: formData.date,
         amount: formData.amount,
         remark: formData.remark,
         person: formData.person,
         branch: formData.branch,
-      })
+      }
+      if (editingId !== null) {
+        await updatePettyCashDebit(editingId, payload)
+      } else {
+        await createPettyCashDebit(payload)
+      }
       await loadSummary()
       setShowAddForm(false)
-      setFormData({
-        date: new Date().toISOString().split('T')[0],
-        amount: 0,
-        remark: '',
-        person: '',
-        branch: filters.branch || branches[0]?.location || '',
-      })
+      resetForm()
     } catch (err) {
       console.error('Failed to save petty cash debit:', err)
     } finally {
@@ -416,11 +440,9 @@ function PettyCashDrawerSection() {
         <button
           type="button"
           onClick={() => {
-            setFormData(prev => ({
-              ...prev,
-              branch: filters.branch || branches[0]?.location || '',
-            }))
-            setShowAddForm(prev => !prev)
+            const opening = !showAddForm
+            if (opening) resetForm()
+            setShowAddForm(opening)
           }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
             bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
@@ -466,7 +488,7 @@ function PettyCashDrawerSection() {
       {showAddForm && (
         <form onSubmit={handleSave} className="mb-6 p-5 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-bold text-surface-900 dark:text-white">Record Petty Cash Spent (Debit)</h4>
+            <h4 className="text-sm font-bold text-surface-900 dark:text-white">{editingId !== null ? 'Edit Petty Cash Spent (Debit)' : 'Record Petty Cash Spent (Debit)'}</h4>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div className="flex flex-col gap-1">
@@ -531,19 +553,13 @@ function PettyCashDrawerSection() {
               disabled={submitting || !formData.amount}
               className="px-4 py-2 rounded-lg text-sm font-bold bg-indigo-500 text-white hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
             >
-              {submitting ? 'Saving...' : 'Save Entry'}
+              {submitting ? (editingId !== null ? 'Updating...' : 'Saving...') : (editingId !== null ? 'Update Entry' : 'Save Entry')}
             </button>
             <button
               type="button"
               onClick={() => {
                 setShowAddForm(false)
-                setFormData({
-                  date: new Date().toISOString().split('T')[0],
-                  amount: 0,
-                  remark: '',
-                  person: '',
-                  branch: filters.branch || branches[0]?.location || '',
-                })
+                resetForm()
               }}
               className="px-4 py-2 rounded-lg text-sm font-bold bg-surface-200 dark:bg-surface-700 text-surface-650 dark:text-surface-300 hover:bg-surface-300 transition-all cursor-pointer"
             >
@@ -714,13 +730,24 @@ function PettyCashDrawerSection() {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => setDeletingId(debit.id)}
-                          className="p-1 rounded opacity-0 group-hover/item:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-505 text-surface-400 transition-all cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(debit)}
+                            title="Edit entry"
+                            className="p-1 rounded opacity-0 group-hover/item:opacity-100 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-500 text-surface-400 transition-all cursor-pointer"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingId(debit.id)}
+                            title="Delete entry"
+                            className="p-1 rounded opacity-0 group-hover/item:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-505 text-surface-400 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

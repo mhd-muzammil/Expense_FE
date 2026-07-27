@@ -187,6 +187,10 @@ export const deleteExpense = (id: number) =>
 export const deleteAllExpenses = (password: string) =>
   api.delete('/expenses/delete-all/', { data: { password } }).then(res => res.data)
 
+// Branches & categories actually used in expense entries — for filter dropdowns.
+export const fetchExpenseFilterOptions = () =>
+  api.get<{ branches: string[]; categories: string[] }>('/expenses/filter-options/').then(res => res.data)
+
 // Clear-data password management (admin-only for set; status readable by admin)
 export const fetchClearDataPasswordStatus = () =>
   api.get<{ is_set: boolean }>('/admin/clear-data-password/').then(res => res.data)
@@ -395,6 +399,9 @@ export const fetchPettyCashSummary = (filters: Filters = {}) => {
 
 export const createPettyCashDebit = (data: PettyCashDebitFormData) =>
   api.post<PettyCashDebit>('/petty-cash-debits/', data).then(res => res.data)
+
+export const updatePettyCashDebit = (id: number, data: PettyCashDebitFormData) =>
+  api.put<PettyCashDebit>(`/petty-cash-debits/${id}/`, data).then(res => res.data)
 
 export const deletePettyCashDebit = (id: number) =>
   api.delete(`/petty-cash-debits/${id}/`).then(res => res.data)
