@@ -13,4 +13,8 @@ export const COMPANY = {
   email: 'support@renderways.in',
   website: 'www.renderways.in',
   gstin: '33AALCR1788A1ZG',
+  // Place these image files in expense_frontend/public/ (Vite serves them at root).
+  // If missing, the document falls back to a text logo / no stamp.
+  logo: '/renderways-logo.png',
+  stamp: '/renderways-stamp.png',
 } as const

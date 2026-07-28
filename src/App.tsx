@@ -1,15 +1,23 @@
 import { useEffect } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
-import Layout from '@/components/Layout'
+import Layout, { type NavItem } from '@/components/Layout'
 import Dashboard from '@/components/Dashboard'
 import ExpenseTable from '@/components/ExpenseTable'
 import ProfitLoss from '@/components/ProfitLoss'
 import RegionExpense from '@/components/RegionExpense'
 import Invoices from '@/components/Invoices'
+import DeliveryChallans from '@/components/DeliveryChallans'
+import PurchaseBills from '@/components/PurchaseBills'
+import PurchaseOrders from '@/components/PurchaseOrders'
+import PaymentReceipts from '@/components/PaymentReceipts'
+import PettyCash from '@/components/PettyCash'
+import Quotes from '@/components/Quotes'
+import BillOfSupplies from '@/components/BillOfSupplies'
+import TaxInvoices from '@/components/TaxInvoices'
 import UserManagement from '@/components/UserManagement'
 import Settings from '@/components/Settings'
 import Login from '@/components/Login'
-import { LayoutDashboard, Receipt, BarChart3, MapPin, FileText, Users, Settings as SettingsIcon, Loader2 } from 'lucide-react'
+import { LayoutDashboard, Receipt, BarChart3, MapPin, FileText, Truck, ShoppingCart, ClipboardList, ReceiptText, Wallet, FileSignature, ScrollText, BadgeIndianRupee, Users, Settings as SettingsIcon, Loader2 } from 'lucide-react'
 import type { SectionKey } from '@/lib/api'
 
 type TabKey = SectionKey | 'admin' | 'settings'
@@ -57,18 +65,26 @@ function App() {
   // Sections this user may access. Admins implicitly get everything; if the
   // field is missing (older token), fall back to all three sections.
   const allowed: SectionKey[] = isAdmin
-    ? ['dashboard', 'expenses', 'pnl', 'region', 'invoice']
-    : (user.allowed_sections ?? ['dashboard', 'expenses', 'pnl', 'region', 'invoice'])
+    ? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice']
+    : (user.allowed_sections ?? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice'])
 
   // Build the visible tab list from the user's access.
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-    ...(allowed.includes('dashboard') ? [{ key: 'dashboard' as TabKey, label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> }] : []),
-    ...(allowed.includes('expenses') ? [{ key: 'expenses' as TabKey, label: 'Expenses', icon: <Receipt className="w-4 h-4" /> }] : []),
-    ...(allowed.includes('pnl') ? [{ key: 'pnl' as TabKey, label: 'P&L', icon: <BarChart3 className="w-4 h-4" /> }] : []),
-    ...(allowed.includes('region') ? [{ key: 'region' as TabKey, label: 'Region Expense', icon: <MapPin className="w-4 h-4" /> }] : []),
-    ...(allowed.includes('invoice') ? [{ key: 'invoice' as TabKey, label: 'Invoice', icon: <FileText className="w-4 h-4" /> }] : []),
-    ...(isAdmin ? [{ key: 'admin' as TabKey, label: 'Users', icon: <Users className="w-4 h-4" /> }] : []),
-    ...(isAdmin ? [{ key: 'settings' as TabKey, label: 'Settings', icon: <SettingsIcon className="w-4 h-4" /> }] : []),
+    ...(allowed.includes('dashboard') ? [{ key: 'dashboard' as TabKey, label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('expenses') ? [{ key: 'expenses' as TabKey, label: 'Expenses', icon: <Receipt className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('pnl') ? [{ key: 'pnl' as TabKey, label: 'P&L', icon: <BarChart3 className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('region') ? [{ key: 'region' as TabKey, label: 'Region Expense', icon: <MapPin className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('invoice') ? [{ key: 'invoice' as TabKey, label: 'Invoice', icon: <FileText className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('challan') ? [{ key: 'challan' as TabKey, label: 'Delivery Challan', icon: <Truck className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('purchase') ? [{ key: 'purchase' as TabKey, label: 'Purchase Bill', icon: <ShoppingCart className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('porder') ? [{ key: 'porder' as TabKey, label: 'Purchase Order', icon: <ClipboardList className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('receipt') ? [{ key: 'receipt' as TabKey, label: 'Payment Receipt', icon: <ReceiptText className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('pettycash') ? [{ key: 'pettycash' as TabKey, label: 'Petty Cash', icon: <Wallet className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('quote') ? [{ key: 'quote' as TabKey, label: 'Quote', icon: <FileSignature className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('bos') ? [{ key: 'bos' as TabKey, label: 'Bill of Supply', icon: <ScrollText className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('taxinvoice') ? [{ key: 'taxinvoice' as TabKey, label: 'Tax Invoice', icon: <BadgeIndianRupee className="w-5 h-5" /> }] : []),
+    ...(isAdmin ? [{ key: 'admin' as TabKey, label: 'Users', icon: <Users className="w-5 h-5" /> }] : []),
+    ...(isAdmin ? [{ key: 'settings' as TabKey, label: 'Settings', icon: <SettingsIcon className="w-5 h-5" /> }] : []),
   ]
 
   // Guard the active tab: if the current selection isn't available to this
@@ -76,32 +92,29 @@ function App() {
   const availableKeys = tabs.map((t) => t.key)
   const currentTab: TabKey = availableKeys.includes(activeTab) ? activeTab : (tabs[0]?.key ?? 'dashboard')
 
-  return (
-    <Layout onLogout={logout}>
-      {/* Tab Navigation */}
-      <div className="flex items-center gap-1 mb-6 p-1 rounded-xl bg-surface-100 dark:bg-surface-800 w-fit">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
-              ${currentTab === tab.key
-                ? 'bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm'
-                : 'text-surface-500 dark:text-surface-400 hover:text-surface-700 dark:hover:text-surface-300'
-              }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+  const navItems: NavItem[] = tabs.map((tab) => ({
+    key: tab.key,
+    label: tab.label,
+    icon: tab.icon,
+    active: currentTab === tab.key,
+    onClick: () => setActiveTab(tab.key),
+  }))
 
-      {/* Content — each guarded by the user's access. */}
+  return (
+    <Layout navItems={navItems} onLogout={logout}>
       {currentTab === 'dashboard' && allowed.includes('dashboard') && <Dashboard />}
       {currentTab === 'expenses' && allowed.includes('expenses') && <ExpenseTable />}
       {currentTab === 'pnl' && allowed.includes('pnl') && <ProfitLoss />}
       {currentTab === 'region' && allowed.includes('region') && <RegionExpense />}
       {currentTab === 'invoice' && allowed.includes('invoice') && <Invoices />}
+      {currentTab === 'challan' && allowed.includes('challan') && <DeliveryChallans />}
+      {currentTab === 'purchase' && allowed.includes('purchase') && <PurchaseBills />}
+      {currentTab === 'porder' && allowed.includes('porder') && <PurchaseOrders />}
+      {currentTab === 'receipt' && allowed.includes('receipt') && <PaymentReceipts />}
+      {currentTab === 'pettycash' && allowed.includes('pettycash') && <PettyCash />}
+      {currentTab === 'quote' && allowed.includes('quote') && <Quotes />}
+      {currentTab === 'bos' && allowed.includes('bos') && <BillOfSupplies />}
+      {currentTab === 'taxinvoice' && allowed.includes('taxinvoice') && <TaxInvoices />}
       {currentTab === 'admin' && isAdmin && <UserManagement />}
       {currentTab === 'settings' && isAdmin && <Settings />}
     </Layout>

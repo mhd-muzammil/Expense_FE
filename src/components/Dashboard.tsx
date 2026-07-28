@@ -72,23 +72,49 @@ function SkeletonChart() {
   )
 }
 
-function DrillModal({ filters, onClose, onViewExpense }: { filters: { branch?: string, category?: string, date_from?: string, date_to?: string }, onClose: () => void, onViewExpense: (exp: Expense) => void }) {
+function DrillModal({ filters, onClose, onViewExpense, kind, title }: { filters: { branch?: string, category?: string, date_from?: string, date_to?: string }, onClose: () => void, onViewExpense: (exp: Expense) => void, kind?: 'credit' | 'debit', title?: string }) {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let alive = true
     const load = async () => {
+      setLoading(true)
       try {
-        const res = await fetchExpenses(filters)
-        setExpenses(res.results)
+        if (kind) {
+          // Credit/Debit drill: page through ALL matching entries and keep only
+          // the requested side, so the list matches the card total exactly.
+          const all: Expense[] = []
+          let page = 1
+          for (;;) {
+            const res = await fetchExpenses({ ...filters, page })
+            all.push(...res.results)
+            if (!res.next || res.results.length === 0 || page > 60) break
+            page++
+          }
+          const filtered = all.filter((e) =>
+            kind === 'credit'
+              ? parseFloat(e.credited_amount || '0') > 0
+              : parseFloat(e.debited_amount || '0') > 0,
+          )
+          if (alive) setExpenses(filtered)
+        } else {
+          const res = await fetchExpenses(filters)
+          if (alive) setExpenses(res.results)
+        }
       } catch (err) {
         console.error('Drill load failed:', err)
       } finally {
-        setLoading(false)
+        if (alive) setLoading(false)
       }
     }
     load()
-  }, [filters])
+    return () => { alive = false }
+  }, [filters, kind])
+
+  const drillTotal = kind
+    ? expenses.reduce((s, e) => s + parseFloat((kind === 'credit' ? e.credited_amount : e.debited_amount) || '0'), 0)
+    : 0
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -96,9 +122,14 @@ function DrillModal({ filters, onClose, onViewExpense }: { filters: { branch?: s
       <div className="relative w-full max-w-2xl bg-white dark:bg-surface-800 rounded-3xl shadow-2xl animate-in fade-in zoom-in duration-300 overflow-hidden flex flex-col max-h-[85vh]">
         <div className="flex items-center justify-between px-8 py-6 border-b border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-900/50">
           <div>
-            <h2 className="text-xl font-black text-surface-900 dark:text-white tracking-tight">Detailed Entries</h2>
+            <h2 className="text-xl font-black text-surface-900 dark:text-white tracking-tight">{title || 'Detailed Entries'}</h2>
             <p className="text-xs text-surface-400 font-bold uppercase tracking-widest mt-0.5">
               {filters.branch || 'All Branches'} • {filters.category || 'All Categories'}
+              {kind && !loading && (
+                <span className={kind === 'credit' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
+                  {' '}• {expenses.length} entries • {formatCurrency(drillTotal)}
+                </span>
+              )}
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-white dark:hover:bg-surface-700 shadow-sm border border-transparent hover:border-surface-100 transition-all">
@@ -180,7 +211,7 @@ const FREQUENCY_COLORS: Record<string, string> = {
   one_time: 'bg-surface-100 text-surface-600 dark:bg-surface-700 dark:text-surface-300',
 }
 
-function PettyCashDrawerSection() {
+export function PettyCashDrawerSection() {
   const { branches, filters } = useExpenseStore()
   const [summary, setSummary] = useState<PettyCashSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1229,6 +1260,12 @@ export default function Dashboard() {
   const [localPmBalances, setLocalPmBalances] = useState(paymentModeBalances)
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null)
   const [drillFilters, setDrillFilters] = useState<{ branch?: string, category?: string, date_from?: string, date_to?: string } | null>(null)
+  // Credit/Debit drill from the "Overall Total Credits/Debits" cards.
+  const [creditDebitDrill, setCreditDebitDrill] = useState<'credit' | 'debit' | null>(null)
+  const cdFilters = useMemo(
+    () => ({ branch: filters.branch, category: filters.category, date_from: filters.date_from, date_to: filters.date_to }),
+    [filters.branch, filters.category, filters.date_from, filters.date_to],
+  )
 
   const financialYears = useMemo(() => getFinancialYears(), [])
 
@@ -1511,13 +1548,11 @@ export default function Dashboard() {
           </button>
 
           {/* Total Credits */}
-          <button 
-            onClick={() => {
-              setFilters({ category: undefined, search: undefined }) // Clear search/cat to show all credits
-              setActiveTab('expenses')
-            }}
+          <button
+            onClick={() => setCreditDebitDrill('credit')}
+            title="Click to see all credit entries"
             className="relative overflow-hidden rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700
-            hover:shadow-md hover:shadow-emerald-500/5 transition-all duration-300 text-left group"
+            hover:shadow-md hover:shadow-emerald-500/5 transition-all duration-300 text-left group cursor-pointer"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -1533,13 +1568,11 @@ export default function Dashboard() {
           </button>
 
           {/* Total Debits */}
-          <button 
-            onClick={() => {
-              setFilters({ category: undefined, search: undefined }) // Clear search/cat to show all debits
-              setActiveTab('expenses')
-            }}
+          <button
+            onClick={() => setCreditDebitDrill('debit')}
+            title="Click to see all debit entries"
             className="relative overflow-hidden rounded-2xl p-6 bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700
-            hover:shadow-md hover:shadow-red-500/5 transition-all duration-300 text-left group"
+            hover:shadow-md hover:shadow-red-500/5 transition-all duration-300 text-left group cursor-pointer"
           >
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -1826,8 +1859,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Petty Cash Drawer Section */}
-      <PettyCashDrawerSection />
+      {/* Petty Cash Drawer moved to its own "Petty Cash" tab. */}
 
       {/* Billing Reminders Section */}
       <BillingRemindersSection />
@@ -1977,9 +2009,19 @@ export default function Dashboard() {
 
       {/* Detailed Entry Modals */}
       {drillFilters && (
-        <DrillModal 
-          filters={drillFilters} 
-          onClose={() => setDrillFilters(null)} 
+        <DrillModal
+          filters={drillFilters}
+          onClose={() => setDrillFilters(null)}
+          onViewExpense={(exp) => setViewingExpense(exp)}
+        />
+      )}
+
+      {creditDebitDrill && (
+        <DrillModal
+          filters={cdFilters}
+          kind={creditDebitDrill}
+          title={creditDebitDrill === 'credit' ? 'Credit Entries' : 'Debit Entries'}
+          onClose={() => setCreditDebitDrill(null)}
           onViewExpense={(exp) => setViewingExpense(exp)}
         />
       )}

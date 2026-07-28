@@ -52,7 +52,7 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
-export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice'
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice'
 
 export interface AuthUser {
   username: string
@@ -531,6 +531,534 @@ export const createInvoice = (data: InvoiceFormData) =>
 
 export const deleteInvoice = (id: number) =>
   api.delete(`/invoices/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Delivery Challans
+// ---------------------------------------------------------------------------
+export interface ChallanItem {
+  id?: number
+  description: string
+  sub_description?: string
+  hsn_sac?: string
+  quantity: string | number
+  uom?: string
+  position?: number
+}
+
+export interface DeliveryChallan {
+  id: number
+  challan_number: string
+  customer_name: string
+  customer_phone: string
+  customer_address: string
+  customer_gstin: string
+  ship_to_name: string
+  ship_to_address: string
+  challan_date: string
+  shipping_date: string | null
+  place_of_supply: string
+  notes: string
+  terms: string
+  items: ChallanItem[]
+  created_at: string
+}
+
+export interface ChallanFormData {
+  challan_number?: string
+  customer_name: string
+  customer_phone?: string
+  customer_address?: string
+  customer_gstin?: string
+  ship_to_name?: string
+  ship_to_address?: string
+  challan_date: string
+  shipping_date?: string | null
+  place_of_supply?: string
+  notes?: string
+  terms?: string
+  items: Array<{
+    description: string
+    sub_description?: string
+    hsn_sac?: string
+    quantity: number
+    uom?: string
+  }>
+}
+
+export const fetchChallans = (search?: string) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  return api.get<DeliveryChallan[]>(`/delivery-challans/${qs}`).then(res => res.data)
+}
+
+export const fetchChallan = (id: number) =>
+  api.get<DeliveryChallan>(`/delivery-challans/${id}/`).then(res => res.data)
+
+export const createChallan = (data: ChallanFormData) =>
+  api.post<DeliveryChallan>('/delivery-challans/', data).then(res => res.data)
+
+export const deleteChallan = (id: number) =>
+  api.delete(`/delivery-challans/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Purchase Bills
+// ---------------------------------------------------------------------------
+export interface PurchaseItem {
+  id?: number
+  description: string
+  sub_description?: string
+  hsn_sac?: string
+  quantity: string | number
+  uom?: string
+  unit_price: string | number
+  gst_rate: string | number
+  position?: number
+  taxable_value?: string
+  cgst_amount?: string
+  sgst_amount?: string
+  half_gst_rate?: string
+  line_total?: string
+}
+
+export interface PurchaseBill {
+  id: number
+  bill_number: string
+  vendor_name: string
+  vendor_phone: string
+  vendor_address: string
+  vendor_gstin: string
+  vendor_pan: string
+  vendor_invoice_number: string
+  ship_to_name: string
+  ship_to_address: string
+  issue_date: string
+  due_date: string | null
+  place_of_supply: string
+  notes: string
+  terms: string
+  items: PurchaseItem[]
+  taxable_total: string
+  cgst_total: string
+  sgst_total: string
+  grand_total: string
+  grand_total_raw: string
+  rounded_off: string
+  amount_in_words: string
+  created_at: string
+}
+
+export interface PurchaseFormData {
+  bill_number?: string
+  vendor_name: string
+  vendor_phone?: string
+  vendor_address?: string
+  vendor_gstin?: string
+  vendor_pan?: string
+  vendor_invoice_number?: string
+  ship_to_name?: string
+  ship_to_address?: string
+  issue_date: string
+  due_date?: string | null
+  place_of_supply?: string
+  notes?: string
+  terms?: string
+  items: Array<{
+    description: string
+    sub_description?: string
+    hsn_sac?: string
+    quantity: number
+    uom?: string
+    unit_price: number
+    gst_rate: number
+  }>
+}
+
+export const fetchPurchaseBills = (search?: string) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  return api.get<PurchaseBill[]>(`/purchase-bills/${qs}`).then(res => res.data)
+}
+
+export const fetchPurchaseBill = (id: number) =>
+  api.get<PurchaseBill>(`/purchase-bills/${id}/`).then(res => res.data)
+
+export const createPurchaseBill = (data: PurchaseFormData) =>
+  api.post<PurchaseBill>('/purchase-bills/', data).then(res => res.data)
+
+export const deletePurchaseBill = (id: number) =>
+  api.delete(`/purchase-bills/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Purchase Orders
+// ---------------------------------------------------------------------------
+export interface POItem {
+  id?: number
+  description: string
+  sub_description?: string
+  hsn_sac?: string
+  quantity: string | number
+  uom?: string
+  unit_price: string | number
+  gst_rate: string | number
+  position?: number
+  taxable_value?: string
+  cgst_amount?: string
+  sgst_amount?: string
+  half_gst_rate?: string
+  line_total?: string
+}
+
+export interface PurchaseOrder {
+  id: number
+  order_number: string
+  vendor_name: string
+  vendor_phone: string
+  vendor_address: string
+  vendor_gstin: string
+  vendor_pan: string
+  ship_to_name: string
+  ship_to_address: string
+  issue_date: string
+  valid_until: string | null
+  place_of_supply: string
+  notes: string
+  terms: string
+  items: POItem[]
+  taxable_total: string
+  cgst_total: string
+  sgst_total: string
+  grand_total: string
+  grand_total_raw: string
+  rounded_off: string
+  amount_in_words: string
+  created_at: string
+}
+
+export interface POFormData {
+  order_number?: string
+  vendor_name: string
+  vendor_phone?: string
+  vendor_address?: string
+  vendor_gstin?: string
+  vendor_pan?: string
+  ship_to_name?: string
+  ship_to_address?: string
+  issue_date: string
+  valid_until?: string | null
+  place_of_supply?: string
+  notes?: string
+  terms?: string
+  items: Array<{
+    description: string
+    sub_description?: string
+    hsn_sac?: string
+    quantity: number
+    uom?: string
+    unit_price: number
+    gst_rate: number
+  }>
+}
+
+export const fetchPurchaseOrders = (search?: string) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  return api.get<PurchaseOrder[]>(`/purchase-orders/${qs}`).then(res => res.data)
+}
+
+export const fetchPurchaseOrder = (id: number) =>
+  api.get<PurchaseOrder>(`/purchase-orders/${id}/`).then(res => res.data)
+
+export const createPurchaseOrder = (data: POFormData) =>
+  api.post<PurchaseOrder>('/purchase-orders/', data).then(res => res.data)
+
+export const deletePurchaseOrder = (id: number) =>
+  api.delete(`/purchase-orders/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Payment Receipts
+// ---------------------------------------------------------------------------
+export interface ReceiptLine {
+  id?: number
+  document_number?: string
+  document_date?: string | null
+  document_amount: string | number
+  payment_amount: string | number
+  position?: number
+}
+
+export interface PaymentReceipt {
+  id: number
+  receipt_number: string
+  receipt_to_name: string
+  receipt_to_phone: string
+  receipt_to_address: string
+  payment_date: string
+  payment_method: string
+  notes: string
+  terms: string
+  lines: ReceiptLine[]
+  amount_received: string
+  amount_in_words: string
+  created_at: string
+}
+
+export interface ReceiptFormData {
+  receipt_number?: string
+  receipt_to_name: string
+  receipt_to_phone?: string
+  receipt_to_address?: string
+  payment_date: string
+  payment_method?: string
+  notes?: string
+  terms?: string
+  lines: Array<{
+    document_number?: string
+    document_date?: string | null
+    document_amount: number
+    payment_amount: number
+  }>
+}
+
+export const fetchReceipts = (search?: string) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  return api.get<PaymentReceipt[]>(`/payment-receipts/${qs}`).then(res => res.data)
+}
+
+export const fetchReceipt = (id: number) =>
+  api.get<PaymentReceipt>(`/payment-receipts/${id}/`).then(res => res.data)
+
+export const createReceipt = (data: ReceiptFormData) =>
+  api.post<PaymentReceipt>('/payment-receipts/', data).then(res => res.data)
+
+export const deleteReceipt = (id: number) =>
+  api.delete(`/payment-receipts/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Quotes
+// ---------------------------------------------------------------------------
+export interface QuoteItem {
+  id?: number
+  description: string
+  sub_description?: string
+  hsn_sac?: string
+  quantity: string | number
+  uom?: string
+  unit_price: string | number
+  gst_rate: string | number
+  position?: number
+  taxable_value?: string
+  cgst_amount?: string
+  sgst_amount?: string
+  half_gst_rate?: string
+  line_total?: string
+}
+
+export interface Quote {
+  id: number
+  quote_number: string
+  customer_name: string
+  customer_phone: string
+  customer_address: string
+  customer_gstin: string
+  ship_to_name: string
+  ship_to_address: string
+  issue_date: string
+  valid_until: string | null
+  place_of_supply: string
+  notes: string
+  terms: string
+  items: QuoteItem[]
+  taxable_total: string
+  cgst_total: string
+  sgst_total: string
+  grand_total: string
+  grand_total_raw: string
+  rounded_off: string
+  amount_in_words: string
+  created_at: string
+}
+
+export interface QuoteFormData {
+  quote_number?: string
+  customer_name: string
+  customer_phone?: string
+  customer_address?: string
+  customer_gstin?: string
+  ship_to_name?: string
+  ship_to_address?: string
+  issue_date: string
+  valid_until?: string | null
+  place_of_supply?: string
+  notes?: string
+  terms?: string
+  items: Array<{
+    description: string
+    sub_description?: string
+    hsn_sac?: string
+    quantity: number
+    uom?: string
+    unit_price: number
+    gst_rate: number
+  }>
+}
+
+export const fetchQuotes = (search?: string) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  return api.get<Quote[]>(`/quotes/${qs}`).then(res => res.data)
+}
+
+export const fetchQuote = (id: number) =>
+  api.get<Quote>(`/quotes/${id}/`).then(res => res.data)
+
+export const createQuote = (data: QuoteFormData) =>
+  api.post<Quote>('/quotes/', data).then(res => res.data)
+
+export const deleteQuote = (id: number) =>
+  api.delete(`/quotes/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Bill of Supply (no GST)
+// ---------------------------------------------------------------------------
+export interface BosItem {
+  id?: number
+  description: string
+  sub_description?: string
+  hsn_sac?: string
+  quantity: string | number
+  uom?: string
+  unit_price: string | number
+  position?: number
+  amount?: string
+}
+
+export interface BillOfSupply {
+  id: number
+  bos_number: string
+  customer_name: string
+  customer_phone: string
+  customer_address: string
+  customer_gstin: string
+  ship_to_name: string
+  ship_to_address: string
+  issue_date: string
+  due_date: string | null
+  place_of_supply: string
+  notes: string
+  terms: string
+  items: BosItem[]
+  taxable_total: string
+  grand_total: string
+  grand_total_raw: string
+  rounded_off: string
+  amount_in_words: string
+  created_at: string
+}
+
+export interface BosFormData {
+  bos_number?: string
+  customer_name: string
+  customer_phone?: string
+  customer_address?: string
+  customer_gstin?: string
+  ship_to_name?: string
+  ship_to_address?: string
+  issue_date: string
+  due_date?: string | null
+  place_of_supply?: string
+  notes?: string
+  terms?: string
+  items: Array<{ description: string; sub_description?: string; hsn_sac?: string; quantity: number; uom?: string; unit_price: number }>
+}
+
+export const fetchBillsOfSupply = (search?: string) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  return api.get<BillOfSupply[]>(`/bills-of-supply/${qs}`).then(res => res.data)
+}
+export const fetchBillOfSupply = (id: number) =>
+  api.get<BillOfSupply>(`/bills-of-supply/${id}/`).then(res => res.data)
+export const createBillOfSupply = (data: BosFormData) =>
+  api.post<BillOfSupply>('/bills-of-supply/', data).then(res => res.data)
+export const deleteBillOfSupply = (id: number) =>
+  api.delete(`/bills-of-supply/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Tax Invoice (CGST+SGST intra / IGST inter-state)
+// ---------------------------------------------------------------------------
+export interface TaxInvoiceItem {
+  id?: number
+  description: string
+  sub_description?: string
+  hsn_sac?: string
+  quantity: string | number
+  uom?: string
+  unit_price: string | number
+  gst_rate: string | number
+  position?: number
+  taxable_value?: string
+  cgst_amount?: string
+  sgst_amount?: string
+  igst_amount?: string
+  half_gst_rate?: string
+  line_total?: string
+}
+
+export interface TaxInvoice {
+  id: number
+  ti_number: string
+  customer_name: string
+  customer_phone: string
+  customer_address: string
+  customer_gstin: string
+  ship_to_name: string
+  ship_to_address: string
+  issue_date: string
+  due_date: string | null
+  place_of_supply: string
+  notes: string
+  terms: string
+  items: TaxInvoiceItem[]
+  is_inter_state: boolean
+  taxable_total: string
+  cgst_total: string
+  sgst_total: string
+  igst_total: string
+  grand_total: string
+  grand_total_raw: string
+  rounded_off: string
+  amount_in_words: string
+  created_at: string
+}
+
+export interface TaxInvoiceFormData {
+  ti_number?: string
+  customer_name: string
+  customer_phone?: string
+  customer_address?: string
+  customer_gstin?: string
+  ship_to_name?: string
+  ship_to_address?: string
+  issue_date: string
+  due_date?: string | null
+  place_of_supply?: string
+  notes?: string
+  terms?: string
+  items: Array<{ description: string; sub_description?: string; hsn_sac?: string; quantity: number; uom?: string; unit_price: number; gst_rate: number }>
+}
+
+export const fetchTaxInvoices = (search?: string) => {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : ''
+  return api.get<TaxInvoice[]>(`/tax-invoices/${qs}`).then(res => res.data)
+}
+export const fetchTaxInvoice = (id: number) =>
+  api.get<TaxInvoice>(`/tax-invoices/${id}/`).then(res => res.data)
+export const createTaxInvoice = (data: TaxInvoiceFormData) =>
+  api.post<TaxInvoice>('/tax-invoices/', data).then(res => res.data)
+export const deleteTaxInvoice = (id: number) =>
+  api.delete(`/tax-invoices/${id}/`).then(res => res.data)
 
 
 export default api

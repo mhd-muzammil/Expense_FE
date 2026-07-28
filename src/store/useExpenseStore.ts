@@ -66,7 +66,7 @@ interface ExpenseStore {
   // UI
   toasts: Toast[]
   theme: 'light' | 'dark'
-  activeTab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'admin' | 'settings'
+  activeTab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'admin' | 'settings'
 
   // Auth actions
   initAuth: () => Promise<void>
@@ -97,7 +97,7 @@ interface ExpenseStore {
   removeToast: (id: string) => void
 
   toggleTheme: () => void
-  setActiveTab: (tab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'admin' | 'settings') => void
+  setActiveTab: (tab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'admin' | 'settings') => void
 }
 
 const useExpenseStore = create<ExpenseStore>((set, get) => ({
@@ -289,6 +289,10 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
     if (allowed.includes('expenses')) {
       // The ledger view needs branches/categories/expenses/payment-modes.
       jobs.push(loadBranches(), loadCategories(), loadExpenses(), loadPaymentModeBalances())
+    } else if (allowed.includes('pettycash')) {
+      // Petty Cash (without full expenses access) still needs the branch list
+      // for its "spent branch" dropdown.
+      jobs.push(loadBranches())
     }
     await Promise.all(jobs)
   },
