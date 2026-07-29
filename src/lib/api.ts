@@ -52,7 +52,7 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
-export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice'
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob'
 
 export interface AuthUser {
   username: string
@@ -1059,6 +1059,61 @@ export const createTaxInvoice = (data: TaxInvoiceFormData) =>
   api.post<TaxInvoice>('/tax-invoices/', data).then(res => res.data)
 export const deleteTaxInvoice = (id: number) =>
   api.delete(`/tax-invoices/${id}/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Bank statements (IDFC FIRST Bank / BOB) — upload the bank's Excel export, rows become entries
+// ---------------------------------------------------------------------------
+export type BankKey = 'idfc' | 'bob'
+
+export interface BankStatementEntry {
+  id: number
+  bank: BankKey
+  bank_display: string
+  txn_date: string | null
+  value_date: string | null
+  narration: string
+  ref_no: string
+  debit: string
+  credit: string
+  balance: string | null
+  balance_dc: string
+  source_file: string
+  uploaded_at: string
+}
+
+export interface BankImportResult {
+  detail: string
+  inserted: number
+  skipped: number
+  errors: string[]
+}
+
+// Each bank is its own endpoint: /idfc-statements/ and /bob-statements/
+const bankBase = (bank: BankKey) => (bank === 'idfc' ? '/idfc-statements' : '/bob-statements')
+
+export const fetchBankStatements = (bank: BankKey, opts?: { search?: string; from?: string; to?: string }) => {
+  const p = new URLSearchParams()
+  if (opts?.search) p.set('search', opts.search)
+  if (opts?.from) p.set('from', opts.from)
+  if (opts?.to) p.set('to', opts.to)
+  const qs = p.toString() ? `?${p.toString()}` : ''
+  return api.get<BankStatementEntry[]>(`${bankBase(bank)}/${qs}`).then(res => res.data)
+}
+
+export const importBankStatement = (bank: BankKey, file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post<BankImportResult>(`${bankBase(bank)}/import/`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(res => res.data)
+}
+
+export const deleteBankStatementEntry = (bank: BankKey, id: number) =>
+  api.delete(`${bankBase(bank)}/${id}/`).then(res => res.data)
+
+export const clearBankStatements = (bank: BankKey) =>
+  api.delete<{ detail: string; deleted: number }>(`${bankBase(bank)}/clear/`).then(res => res.data)
 
 
 export default api

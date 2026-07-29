@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
 import { APP_NAME, APP_SUBTITLE, CURRENCY_SYMBOL } from '@/lib/brand'
-import { Moon, Sun, X, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Moon, Sun, X, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ChevronDown } from 'lucide-react'
 
 export interface NavItem {
   key: string
@@ -9,6 +9,7 @@ export interface NavItem {
   icon: React.ReactNode
   active: boolean
   onClick: () => void
+  children?: NavItem[]
 }
 
 interface LayoutProps {
@@ -34,6 +35,75 @@ function Logo({ compact = false }: { compact?: boolean }) {
 }
 
 const COLLAPSE_KEY = 'sidebar_collapsed'
+
+function NavItemRow({ item, showLabels }: { item: NavItem; showLabels: boolean }) {
+  const hasChildren = item.children && item.children.length > 0
+  const isChildActive = hasChildren && item.children!.some((c) => c.active)
+  const [expanded, setExpanded] = useState(item.active || isChildActive)
+
+  useEffect(() => {
+    if (item.active || isChildActive) {
+      setExpanded(true)
+    }
+  }, [item.active, isChildActive])
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => {
+            item.onClick()
+            if (hasChildren) setExpanded(true)
+          }}
+          title={item.label}
+          className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200 w-full
+            ${showLabels ? 'px-4 py-2.5' : 'justify-center px-0 py-3'}
+            ${item.active
+              ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-semibold'
+              : isChildActive
+              ? 'text-primary-600 dark:text-primary-400 font-semibold bg-surface-50 dark:bg-surface-800/40'
+              : 'text-surface-500 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200'
+            }`}
+        >
+          <span className="shrink-0">{item.icon}</span>
+          {showLabels && <span className="truncate flex-1 text-left">{item.label}</span>}
+          {showLabels && hasChildren && (
+            <span
+              onClick={(e) => {
+                e.stopPropagation()
+                setExpanded((v) => !v)
+              }}
+              className="p-0.5 rounded hover:bg-surface-200/50 dark:hover:bg-surface-700/50 transition-colors"
+            >
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+            </span>
+          )}
+        </button>
+      </div>
+
+      {hasChildren && expanded && (
+        <div className={`flex flex-col gap-1 ${showLabels ? 'pl-5 border-l border-surface-200 dark:border-surface-700/60 ml-5 my-1' : 'items-center mt-1'}`}>
+          {item.children!.map((child) => (
+            <button
+              key={child.key}
+              onClick={child.onClick}
+              title={child.label}
+              className={`flex items-center gap-2.5 rounded-lg text-xs font-medium transition-all duration-200 w-full
+                ${showLabels ? 'px-3 py-2' : 'justify-center px-0 py-2'}
+                ${child.active
+                  ? 'bg-primary-100/70 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300 font-semibold shadow-xs'
+                  : 'text-surface-500 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200'
+                }`}
+            >
+              <span className="shrink-0">{child.icon}</span>
+              {showLabels && <span className="truncate">{child.label}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Layout({ children, navItems = [], onLogout }: LayoutProps) {
   const { theme, toggleTheme, toasts, removeToast, user } = useExpenseStore()
@@ -84,20 +154,7 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
   const Nav = ({ showLabels }: { showLabels: boolean }) => (
     <div className="flex flex-col gap-1">
       {navItems.map((item) => (
-        <button
-          key={item.key}
-          onClick={item.onClick}
-          title={item.label}
-          className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200 w-full
-            ${showLabels ? 'px-4 py-2.5' : 'justify-center px-0 py-3'}
-            ${item.active
-              ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
-              : 'text-surface-500 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-700 dark:hover:text-surface-200'
-            }`}
-        >
-          <span className="shrink-0">{item.icon}</span>
-          {showLabels && <span className="truncate">{item.label}</span>}
-        </button>
+        <NavItemRow key={item.key} item={item} showLabels={showLabels} />
       ))}
     </div>
   )

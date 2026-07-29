@@ -66,7 +66,7 @@ interface ExpenseStore {
   // UI
   toasts: Toast[]
   theme: 'light' | 'dark'
-  activeTab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'admin' | 'settings'
+  activeTab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'admin' | 'settings'
 
   // Auth actions
   initAuth: () => Promise<void>
@@ -97,7 +97,7 @@ interface ExpenseStore {
   removeToast: (id: string) => void
 
   toggleTheme: () => void
-  setActiveTab: (tab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'admin' | 'settings') => void
+  setActiveTab: (tab: 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'admin' | 'settings') => void
 }
 
 const useExpenseStore = create<ExpenseStore>((set, get) => ({
