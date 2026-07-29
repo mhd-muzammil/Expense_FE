@@ -74,7 +74,7 @@ function App() {
     ...(allowed.includes('dashboard') ? [{ key: 'dashboard' as TabKey, label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> }] : []),
     ...(allowed.includes('expenses') ? [{ key: 'expenses' as TabKey, label: 'Expenses', icon: <Receipt className="w-5 h-5" /> }] : []),
     ...(allowed.includes('pnl') ? [{ key: 'pnl' as TabKey, label: 'P&L', icon: <BarChart3 className="w-5 h-5" /> }] : []),
-    ...(allowed.includes('idfc') ? [{ key: 'idfc' as TabKey, label: 'HDFC Statement', icon: <Landmark className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('idfc') ? [{ key: 'idfc' as TabKey, label: 'IDFC Statement', icon: <Landmark className="w-5 h-5" /> }] : []),
     ...(allowed.includes('bob') ? [{ key: 'bob' as TabKey, label: 'BOB Statement', icon: <Landmark className="w-5 h-5" /> }] : []),
     ...(allowed.includes('region') ? [{ key: 'region' as TabKey, label: 'Region Expense', icon: <MapPin className="w-5 h-5" /> }] : []),
     ...(allowed.includes('invoice') ? [{ key: 'invoice' as TabKey, label: 'Invoice', icon: <FileText className="w-5 h-5" /> }] : []),
@@ -118,7 +118,7 @@ function App() {
       {currentTab === 'quote' && allowed.includes('quote') && <Quotes />}
       {currentTab === 'bos' && allowed.includes('bos') && <BillOfSupplies />}
       {currentTab === 'taxinvoice' && allowed.includes('taxinvoice') && <TaxInvoices />}
-      {currentTab === 'idfc' && allowed.includes('idfc') && <BankStatement bank="idfc" title="HDFC Statement" subtitle="Upload the HDFC Bank Excel export — rows become entries" />}
+      {currentTab === 'idfc' && allowed.includes('idfc') && <BankStatement bank="idfc" title="IDFC Statement" subtitle="Upload the IDFC Bank Excel export — rows become entries" />}
       {currentTab === 'bob' && allowed.includes('bob') && <BankStatement bank="bob" title="BOB Statement" subtitle="Upload the Bank of Baroda Excel export — rows become entries" />}
       {currentTab === 'admin' && isAdmin && <UserManagement />}
       {currentTab === 'settings' && isAdmin && <Settings />}

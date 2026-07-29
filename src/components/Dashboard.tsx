@@ -4,7 +4,7 @@ import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
 import { ExpenseDetailModal } from '@/components/BranchCard'
-import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense, fetchPettyCashSummary, createPettyCashDebit, updatePettyCashDebit, deletePettyCashDebit, type PettyCashDebit, type PettyCashDebitFormData, type PettyCashSummary } from '@/lib/api'
+import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense, fetchPettyCashSummary, createPettyCashDebit, updatePettyCashDebit, deletePettyCashDebit, downloadPettyCashExport, type PettyCashDebit, type PettyCashDebitFormData, type PettyCashSummary } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -35,6 +35,7 @@ import {
   Repeat,
   ArrowLeft,
   Search,
+  Download,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -227,6 +228,7 @@ export function PettyCashDrawerSection() {
   const [localDateFrom, setLocalDateFrom] = useState('')
   const [localDateTo, setLocalDateTo] = useState('')
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'>('date-desc')
+  const [exporting, setExporting] = useState(false)
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -314,6 +316,21 @@ export function PettyCashDrawerSection() {
       setDeletingId(null)
     } catch (err) {
       console.error('Failed to delete petty cash debit:', err)
+    }
+  }
+
+  const handleExport = async (fileType: 'excel' | 'csv') => {
+    setExporting(true)
+    try {
+      await downloadPettyCashExport(fileType, {
+        branch: localBranchFilter || filters.branch,
+        date_from: localDateFrom || filters.date_from,
+        date_to: localDateTo || filters.date_to,
+      })
+    } catch (err) {
+      console.error('Failed to export petty cash:', err)
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -468,19 +485,32 @@ export function PettyCashDrawerSection() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            const opening = !showAddForm
-            if (opening) resetForm()
-            setShowAddForm(opening)
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-            bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
-            hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" /> Record Spent Cash
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleExport('excel')}
+            disabled={exporting}
+            title="Export petty cash ledger to Excel"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+              bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400
+              hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all cursor-pointer disabled:opacity-60"
+          >
+            <Download className="w-3.5 h-3.5" /> {exporting ? 'Exporting…' : 'Export'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const opening = !showAddForm
+              if (opening) resetForm()
+              setShowAddForm(opening)
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+              bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
+              hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" /> Record Spent Cash
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

@@ -277,6 +277,28 @@ export const downloadExport = async (
   URL.revokeObjectURL(blobUrl)
 }
 
+export const downloadPettyCashExport = async (
+  fileType: 'csv' | 'excel',
+  filters: { branch?: string; date_from?: string; date_to?: string } = {},
+): Promise<void> => {
+  const params = new URLSearchParams()
+  params.set('type', fileType)
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') params.set(key, String(value))
+  })
+
+  const response = await api.get(`/petty-cash/export/?${params.toString()}`, { responseType: 'blob' })
+  const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/octet-stream' })
+  const blobUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = blobUrl
+  link.download = fileType === 'excel' ? 'petty-cash.xlsx' : 'petty-cash.csv'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(blobUrl)
+}
+
 export const uploadImport = async (file: File): Promise<{ detail: string; success_count: number; errors?: string[] }> => {
   const formData = new FormData()
   formData.append('file', file)

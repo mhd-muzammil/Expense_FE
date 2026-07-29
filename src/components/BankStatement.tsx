@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, X } from 'lucide-react'
+import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, X } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import {
   fetchBankStatements, importBankStatement, deleteBankStatementEntry, clearBankStatements,
@@ -58,7 +58,10 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
   const totals = useMemo(() => {
     let dr = 0, cr = 0
     rows.forEach((r) => { dr += num(r.debit); cr += num(r.credit) })
-    return { dr, cr }
+    // Rows are ordered latest-first, so the current balance is the newest row
+    // that carries a balance value.
+    const latest = rows.find((r) => r.balance != null && r.balance !== '')
+    return { dr, cr, balance: latest?.balance ?? null, balanceDc: latest?.balance_dc ?? '' }
   }, [rows])
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -163,7 +166,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
       </div>
 
       {/* Summary tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4">
           <div className="text-xs font-medium text-surface-500 dark:text-surface-400">Entries</div>
           <div className="text-2xl font-bold text-surface-900 dark:text-white">{rows.length}</div>
@@ -175,6 +178,10 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
         <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4">
           <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-500"><ArrowDownCircle className="w-3.5 h-3.5" /> Total Credit</div>
           <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">₹{inr(totals.cr)}</div>
+        </div>
+        <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-primary-500"><Wallet className="w-3.5 h-3.5" /> Current Balance</div>
+          <div className="text-2xl font-bold text-primary-600 dark:text-primary-400">{totals.balance != null ? `₹${inr(totals.balance)}${totals.balanceDc ? ' ' + totals.balanceDc : ''}` : '—'}</div>
         </div>
       </div>
 
