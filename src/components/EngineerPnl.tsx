@@ -29,9 +29,20 @@ export default function EngineerPnl() {
   const [fromDate, setFromDate] = useState(currentDay())
   const [toDate, setToDate] = useState(currentDay())
   const [showAll, setShowAll] = useState(false)
+  const [cycleMonth, setCycleMonth] = useState('')
   const [editing, setEditing] = useState<null | { id?: number; data: EngineerPnlFormData }>(null)
 
   const isToday = fromDate === currentDay() && toDate === currentDay()
+
+  // Salary cycle = 25th of the previous month → 24th of the selected month.
+  const applyCycle = (ym: string) => {
+    setCycleMonth(ym)
+    if (!ym) return
+    const [y, m] = ym.split('-').map(Number)
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    setFromDate(fmt(new Date(y, m - 2, 25)))
+    setToDate(fmt(new Date(y, m - 1, 24)))
+  }
 
   const load = async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true)
@@ -93,15 +104,20 @@ export default function EngineerPnl() {
               ? <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll</span>
               : <span title={board.payroll_message} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll off</span>
           )}
-          <button onClick={() => { setFromDate(currentDay()); setToDate(currentDay()) }} disabled={isToday}
+          <button onClick={() => { setCycleMonth(''); setFromDate(currentDay()); setToDate(currentDay()) }} disabled={isToday}
             title="Back to today (live)"
             className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${isToday ? 'bg-primary-600 text-white' : 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 hover:bg-primary-100'}`}>
             Today
           </button>
-          <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} title="From date"
+          <div className="flex items-center gap-1" title="Salary cycle: 25th of previous month → 24th of this month">
+            <span className="text-xs font-semibold text-surface-400">Cycle</span>
+            <input type="month" value={cycleMonth} onChange={(e) => applyCycle(e.target.value)}
+              className={`px-2.5 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 ${cycleMonth ? 'border-primary-400' : 'border-surface-200 dark:border-surface-700'}`} />
+          </div>
+          <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => { setCycleMonth(''); setFromDate(e.target.value) }} title="From date"
             className="px-2.5 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
           <span className="text-surface-400">–</span>
-          <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} title="To date"
+          <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => { setCycleMonth(''); setToDate(e.target.value) }} title="To date"
             className="px-2.5 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
           <button onClick={() => setShowAll((v) => !v)}
             title={showAll ? 'Showing every engineer — click for only those with data' : 'Overall: show every engineer, not just those with closed calls'}
@@ -135,8 +151,8 @@ export default function EngineerPnl() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <Tile label="Engineers" value={board ? String(board.rows.length) : '—'} />
         <Tile label="Closed Calls (P/M)" value={t ? inr(t.closed_calls) : '—'} accent="text-primary-600 dark:text-primary-400" />
-        <Tile label="Total Revenue" value={t ? `₹${inr(t.revenue)}` : '—'} accent="text-emerald-600 dark:text-emerald-400" />
-        <Tile label="Total Nett" value={t ? `₹${inr(t.nett)}` : '—'} accent={t && parseFloat(t.nett) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} />
+        <Tile label="Total Engg Earning" value={t ? `₹${inr(t.revenue)}` : '—'} accent="text-emerald-600 dark:text-emerald-400" />
+        <Tile label="Total Profit / Loss" value={t ? `₹${inr(t.nett)}` : '—'} accent={t && parseFloat(t.nett) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} />
       </div>
 
       {/* Board table */}
@@ -169,11 +185,11 @@ export default function EngineerPnl() {
                   <th className="text-right p-3 font-semibold text-primary-600 dark:text-primary-400">Total Closed<br/>P/M</th>
                   <th className="text-right p-3 font-semibold">Per Call<br/>Rate</th>
                   <th className="text-right p-3 font-semibold">Engg<br/>Salary</th>
-                  <th className="text-right p-3 font-semibold">Per Day</th>
+                  <th className="text-right p-3 font-semibold">1 Day<br/>Salary</th>
                   <th className="text-right p-3 font-semibold">Total<br/>WD</th>
                   <th className="text-right p-3 font-semibold">Actual<br/>WD</th>
-                  <th className="text-right p-3 font-semibold">Revenue</th>
-                  <th className="text-right p-3 font-semibold">Nett</th>
+                  <th className="text-right p-3 font-semibold text-emerald-600 dark:text-emerald-400">Engg<br/>Earning</th>
+                  <th className="text-right p-3 font-semibold">Profit /<br/>Loss</th>
                   <th className="text-right p-3 font-semibold"></th>
                 </tr>
               </thead>
@@ -214,8 +230,7 @@ export default function EngineerPnl() {
                     <td className="p-3">Total ({t.engg_count})</td>
                     <td colSpan={2}></td>
                     <td className="p-3 text-right text-primary-600 dark:text-primary-400">{inr(t.closed_calls)}</td>
-                    <td colSpan={4}></td>
-                    <td className="p-3 text-right">₹{inr(t.total_engg_salary)}</td>
+                    <td colSpan={5}></td>
                     <td className="p-3 text-right text-emerald-600 dark:text-emerald-400">₹{inr(t.revenue)}</td>
                     <td className={`p-3 text-right ${parseFloat(t.nett) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>₹{inr(t.nett)}</td>
                     <td></td>
