@@ -1,0 +1,308 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  Cpu, Plus, RefreshCw, Trash2, Pencil, X, Loader2, TrendingUp, TrendingDown, Wifi, WifiOff, UserPlus, IndianRupee,
+} from 'lucide-react'
+import useExpenseStore from '@/store/useExpenseStore'
+import {
+  fetchEngineerPnlBoard, createEngineerPnl, updateEngineerPnl,
+  type EngineerPnlBoard, type EngineerPnlRow, type EngineerPnlFormData,
+} from '@/lib/api'
+
+const inr = (v: string | number | null | undefined) => {
+  const n = typeof v === 'string' ? parseFloat(v) : (v ?? 0)
+  if (isNaN(n as number)) return '0'
+  return (n as number).toLocaleString('en-IN', { maximumFractionDigits: 2 })
+}
+const currentDay = () => new Date().toISOString().slice(0, 10)
+
+const emptyForm = (): EngineerPnlFormData => ({
+  engineer_name: '', email: '', engg_count: 1, per_day_target: 10,
+  per_call_rate: 350, engg_salary: 25000, total_working_days: 30, actual_working_days: 25, active: true,
+})
+
+export default function EngineerPnl() {
+  const addToast = useExpenseStore((s) => s.addToast)
+  const [board, setBoard] = useState<EngineerPnlBoard | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  // Default view = today. Change the From/To pickers to look at any past date/range.
+  const [fromDate, setFromDate] = useState(currentDay())
+  const [toDate, setToDate] = useState(currentDay())
+  const [showAll, setShowAll] = useState(false)
+  const [editing, setEditing] = useState<null | { id?: number; data: EngineerPnlFormData }>(null)
+
+  const isToday = fromDate === currentDay() && toDate === currentDay()
+
+  const load = async (silent = false) => {
+    if (silent) setRefreshing(true); else setLoading(true)
+    try {
+      setBoard(await fetchEngineerPnlBoard({ from: fromDate || currentDay(), to: toDate || currentDay(), all: showAll }))
+    } catch {
+      addToast('error', 'Failed to load Engineer P&L')
+    } finally {
+      setLoading(false); setRefreshing(false)
+    }
+  }
+
+  useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fromDate, toDate, showAll])
+  // Live auto-refresh every 60s (closed calls update in near real time).
+  useEffect(() => {
+    const t = setInterval(() => load(true), 60000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate, showAll])
+
+  const openAdd = (prefillName?: string) => setEditing({ data: { ...emptyForm(), engineer_name: prefillName || '' } })
+  const openEdit = (r: EngineerPnlRow) => setEditing({ id: r.id, data: {
+    engineer_name: r.engineer_name, email: r.email, engg_count: r.engg_count, per_day_target: r.per_day_target,
+    per_call_rate: parseFloat(r.per_call_rate), engg_salary: parseFloat(r.engg_salary),
+    total_working_days: r.total_working_days, actual_working_days: r.actual_working_days, active: true,
+  } })
+
+  // Soft-hide (active=false) rather than hard-delete, so the OpenCall auto-sync
+  // doesn't just recreate the engineer on the next refresh.
+  const remove = async (id: number, name: string) => {
+    try { await updateEngineerPnl(id, { active: false }); addToast('success', `Removed ${name}`); load(true) }
+    catch { addToast('error', 'Failed to remove') }
+  }
+
+  const t = board?.totals
+
+  return (
+    <div className="animate-fade-in">
+      {/* Header */}
+      <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary-50 dark:bg-primary-900/30">
+            <Cpu className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-surface-900 dark:text-white">Engineer P&amp;L</h2>
+            <p className="text-sm text-surface-500 dark:text-surface-400">Live profit/loss — closed calls from OpenCall</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Live status */}
+          {board && (
+            board.live_ok
+              ? <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"><Wifi className="w-3.5 h-3.5" /> OpenCall</span>
+              : <span title={board.message} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"><WifiOff className="w-3.5 h-3.5" /> OpenCall off</span>
+          )}
+          {board && board.payroll_ok !== null && (
+            board.payroll_ok
+              ? <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll</span>
+              : <span title={board.payroll_message} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll off</span>
+          )}
+          <button onClick={() => { setFromDate(currentDay()); setToDate(currentDay()) }} disabled={isToday}
+            title="Back to today (live)"
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${isToday ? 'bg-primary-600 text-white' : 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 hover:bg-primary-100'}`}>
+            Today
+          </button>
+          <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} title="From date"
+            className="px-2.5 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
+          <span className="text-surface-400">–</span>
+          <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} title="To date"
+            className="px-2.5 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
+          <button onClick={() => setShowAll((v) => !v)}
+            title={showAll ? 'Showing every engineer — click for only those with data' : 'Overall: show every engineer, not just those with closed calls'}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${showAll ? 'bg-primary-600 text-white' : 'bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-50'}`}>
+            Overall
+          </button>
+          <button onClick={() => load(true)} disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 disabled:opacity-60">
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+          <button onClick={() => openAdd()}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white">
+            <Plus className="w-4 h-4" /> Add Engineer
+          </button>
+        </div>
+      </div>
+
+      {/* OpenCall offline notice */}
+      {board && !board.live_ok && (
+        <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <strong>Closed calls not live yet.</strong> {board.message} Set <code>OPENCALL_USERNAME</code> / <code>OPENCALL_PASSWORD</code> (and <code>OPENCALL_API_URL</code>) on the backend to pull real-time closed calls. Everything else works; revenue shows once closed calls arrive.
+        </div>
+      )}
+      {board && board.payroll_ok === false && (
+        <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+          <strong>Salary not from Payroll yet.</strong> {board.payroll_message} Set <code>PAYROLL_USERNAME</code> / <code>PAYROLL_PASSWORD</code> / <code>PAYROLL_API_URL</code> (an admin account) to auto-fill each engineer's real salary. Until then the salary shown is the manual/default value.
+        </div>
+      )}
+
+      {/* Summary tiles */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <Tile label="Engineers" value={board ? String(board.rows.length) : '—'} />
+        <Tile label="Closed Calls (P/M)" value={t ? inr(t.closed_calls) : '—'} accent="text-primary-600 dark:text-primary-400" />
+        <Tile label="Total Revenue" value={t ? `₹${inr(t.revenue)}` : '—'} accent="text-emerald-600 dark:text-emerald-400" />
+        <Tile label="Total Nett" value={t ? `₹${inr(t.nett)}` : '—'} accent={t && parseFloat(t.nett) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} />
+      </div>
+
+      {/* Board table */}
+      <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 overflow-hidden">
+        {loading ? (
+          <div className="p-6 space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-12 rounded-lg" />)}</div>
+        ) : !board || board.rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Cpu className="w-12 h-12 text-surface-300 dark:text-surface-600 mb-3" />
+            {board && board.total_configured > 0 ? (
+              <>
+                <p className="text-surface-500 dark:text-surface-400 font-medium">No engineer has closed calls in this period</p>
+                <button onClick={() => setShowAll(true)} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">Show all {board.total_configured} engineers (Overall) →</button>
+              </>
+            ) : (
+              <>
+                <p className="text-surface-500 dark:text-surface-400 font-medium">No engineers configured yet</p>
+                <button onClick={() => openAdd()} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">Add your first engineer →</button>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead>
+                <tr className="bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700 text-surface-600 dark:text-surface-400">
+                  <th className="text-left p-3 font-semibold">Engineer</th>
+                  <th className="text-right p-3 font-semibold">Per Day<br/>Target</th>
+                  <th className="text-right p-3 font-semibold">Closed<br/>P/D</th>
+                  <th className="text-right p-3 font-semibold text-primary-600 dark:text-primary-400">Total Closed<br/>P/M</th>
+                  <th className="text-right p-3 font-semibold">Per Call<br/>Rate</th>
+                  <th className="text-right p-3 font-semibold">Engg<br/>Salary</th>
+                  <th className="text-right p-3 font-semibold">Per Day</th>
+                  <th className="text-right p-3 font-semibold">Total<br/>WD</th>
+                  <th className="text-right p-3 font-semibold">Actual<br/>WD</th>
+                  <th className="text-right p-3 font-semibold">Revenue</th>
+                  <th className="text-right p-3 font-semibold">Nett</th>
+                  <th className="text-right p-3 font-semibold"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {board.rows.map((r) => {
+                  const nett = parseFloat(r.nett)
+                  return (
+                    <tr key={r.id} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30">
+                      <td className="p-3 font-semibold text-surface-900 dark:text-white">{r.engineer_name}</td>
+                      <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.per_day_target}</td>
+                      <td className="p-3 text-right text-surface-700 dark:text-surface-300">{r.actual_closed_pd}</td>
+                      <td className="p-3 text-right font-bold text-primary-600 dark:text-primary-400">{inr(r.total_calls_closed_pm)}</td>
+                      <td className="p-3 text-right text-surface-500 dark:text-surface-400">₹{inr(r.per_call_rate)}</td>
+                      <td className="p-3 text-right text-surface-500 dark:text-surface-400 whitespace-nowrap">
+                        ₹{inr(r.engg_salary)}
+                        {r.salary_source === 'payroll' && <span className="ml-1 text-[9px] font-bold text-primary-500" title="Salary from Payroll">● PR</span>}
+                      </td>
+                      <td className="p-3 text-right text-surface-500 dark:text-surface-400">₹{inr(r.per_day)}</td>
+                      <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.total_working_days}</td>
+                      <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.actual_working_days}</td>
+                      <td className="p-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">₹{inr(r.revenue)}</td>
+                      <td className={`p-3 text-right font-bold ${nett >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <span className="inline-flex items-center gap-1 justify-end">{nett >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}₹{inr(Math.abs(nett))}</span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEdit(r)} title="Edit" className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-surface-50 dark:hover:bg-surface-700"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={() => remove(r.id, r.engineer_name)} title="Delete" className="p-1.5 rounded-lg text-surface-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              {t && (
+                <tfoot>
+                  <tr className="border-t-2 border-surface-200 dark:border-surface-600 font-bold text-surface-900 dark:text-white bg-surface-50/50 dark:bg-surface-900/40">
+                    <td className="p-3">Total ({t.engg_count})</td>
+                    <td colSpan={2}></td>
+                    <td className="p-3 text-right text-primary-600 dark:text-primary-400">{inr(t.closed_calls)}</td>
+                    <td colSpan={4}></td>
+                    <td className="p-3 text-right">₹{inr(t.total_engg_salary)}</td>
+                    <td className="p-3 text-right text-emerald-600 dark:text-emerald-400">₹{inr(t.revenue)}</td>
+                    <td className={`p-3 text-right ${parseFloat(t.nett) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>₹{inr(t.nett)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Unmatched OpenCall engineers */}
+      {board && board.unmatched_engineers.length > 0 && (
+        <div className="mt-5 rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-5">
+          <h3 className="font-semibold text-surface-900 dark:text-white mb-1">In OpenCall but not added here</h3>
+          <p className="text-xs text-surface-500 dark:text-surface-400 mb-3">These engineers have closed calls in OpenCall this month but no P&amp;L config. Add them to count their revenue.</p>
+          <div className="flex flex-wrap gap-2">
+            {board.unmatched_engineers.map((u) => (
+              <button key={u.engineer_name} onClick={() => openAdd(u.engineer_name)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-50 dark:bg-surface-900/50 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:border-primary-400 hover:text-primary-600">
+                <UserPlus className="w-3.5 h-3.5" /> {u.engineer_name} <span className="text-surface-400">({u.closed_calls})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {editing && <EngineerForm state={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(true) }} onToast={addToast} />}
+    </div>
+  )
+}
+
+function Tile({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4">
+      <div className="text-xs font-medium text-surface-500 dark:text-surface-400">{label}</div>
+      <div className={`text-2xl font-bold ${accent || 'text-surface-900 dark:text-white'}`}>{value}</div>
+    </div>
+  )
+}
+
+function EngineerForm({ state, onClose, onSaved, onToast }: {
+  state: { id?: number; data: EngineerPnlFormData }
+  onClose: () => void; onSaved: () => void; onToast: (t: 'success' | 'error', m: string) => void
+}) {
+  const [form, setForm] = useState<EngineerPnlFormData>(state.data)
+  const [saving, setSaving] = useState(false)
+  const set = (k: keyof EngineerPnlFormData, v: string | number | boolean) => setForm((p) => ({ ...p, [k]: v }))
+  const num = (v: string) => (v === '' ? 0 : parseFloat(v))
+
+  const save = async () => {
+    if (!form.engineer_name.trim()) { onToast('error', 'Engineer name is required (must match the OpenCall name)'); return }
+    setSaving(true)
+    try {
+      if (state.id) { await updateEngineerPnl(state.id, form); onToast('success', 'Updated') }
+      else { await createEngineerPnl(form); onToast('success', `Added ${form.engineer_name}`) }
+      onSaved()
+    } catch { onToast('error', 'Failed to save'); setSaving(false) }
+  }
+
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500'
+  const labelCls = 'block text-xs font-medium text-surface-500 dark:text-surface-400 mb-1'
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-surface-800 shadow-2xl border border-surface-100 dark:border-surface-700" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700">
+          <h3 className="font-bold text-surface-900 dark:text-white">{state.id ? 'Edit engineer' : 'Add engineer'}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"><X className="w-4 h-4 text-surface-500" /></button>
+        </div>
+        <div className="p-5 grid grid-cols-2 gap-4">
+          <div className="col-span-2"><label className={labelCls}>Engineer name * <span className="text-surface-400">(exact OpenCall name)</span></label><input className={inputCls} value={form.engineer_name} onChange={(e) => set('engineer_name', e.target.value)} /></div>
+          <div className="col-span-2"><label className={labelCls}>Email (optional)</label><input className={inputCls} value={form.email} onChange={(e) => set('email', e.target.value)} /></div>
+          <div><label className={labelCls}>Per call rate (₹)</label><input className={inputCls} value={form.per_call_rate} onChange={(e) => set('per_call_rate', num(e.target.value))} /></div>
+          <div><label className={labelCls}>Engineer salary (₹)</label><input className={inputCls} value={form.engg_salary} onChange={(e) => set('engg_salary', num(e.target.value))} /></div>
+          <div><label className={labelCls}>Per day target</label><input className={inputCls} value={form.per_day_target} onChange={(e) => set('per_day_target', num(e.target.value))} /></div>
+          <div><label className={labelCls}>Engg count</label><input className={inputCls} value={form.engg_count} onChange={(e) => set('engg_count', num(e.target.value))} /></div>
+          <div><label className={labelCls}>Total working days</label><input className={inputCls} value={form.total_working_days} onChange={(e) => set('total_working_days', num(e.target.value))} /></div>
+          <div><label className={labelCls}>Actual working days</label><input className={inputCls} value={form.actual_working_days} onChange={(e) => set('actual_working_days', num(e.target.value))} /></div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-surface-100 dark:border-surface-700">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700">Cancel</button>
+          <button onClick={save} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-60">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -13,6 +13,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Always use 5173 (don't silently drift to 5174/5175 when the port is busy).
+    // A stable port keeps the stored login token valid across restarts.
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',

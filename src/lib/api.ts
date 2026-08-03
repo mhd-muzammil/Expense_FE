@@ -52,7 +52,7 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
-export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob'
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl'
 
 export interface AuthUser {
   username: string
@@ -1136,6 +1136,90 @@ export const deleteBankStatementEntry = (bank: BankKey, id: number) =>
 
 export const clearBankStatements = (bank: BankKey) =>
   api.delete<{ detail: string; deleted: number }>(`${bankBase(bank)}/clear/`).then(res => res.data)
+
+
+// ---------------------------------------------------------------------------
+// Engineer P&L — live profit/loss; closed calls pulled from the OpenCall system
+// ---------------------------------------------------------------------------
+export interface EngineerPnl {
+  id: number
+  engineer_name: string
+  email: string
+  engg_count: number
+  per_day_target: number
+  per_call_rate: string
+  engg_salary: string
+  total_working_days: number
+  actual_working_days: number
+  active: boolean
+  position: number
+  per_day: string
+  created_at: string
+}
+
+export interface EngineerPnlFormData {
+  engineer_name: string
+  email?: string
+  engg_count?: number
+  per_day_target?: number
+  per_call_rate: number
+  engg_salary: number
+  total_working_days: number
+  actual_working_days: number
+  active?: boolean
+}
+
+export interface EngineerPnlRow {
+  id: number
+  engineer_name: string
+  email: string
+  engg_count: number
+  per_day_target: number
+  per_call_rate: string
+  engg_salary: string
+  total_working_days: number
+  actual_working_days: number
+  salary_source: 'payroll' | 'manual'
+  closed_calls: number
+  actual_closed_pd: string
+  total_calls_closed_pm: number
+  per_day: string
+  revenue: string
+  total_engg_salary: string
+  nett: string
+}
+
+export interface EngineerPnlBoard {
+  period: { month: string; from: string; to: string }
+  live_ok: boolean
+  message: string
+  synced: number
+  payroll_ok: boolean | null
+  payroll_message: string
+  show_all: boolean
+  total_configured: number
+  meta: Record<string, unknown>
+  rows: EngineerPnlRow[]
+  totals: { engg_count: number; closed_calls: number; revenue: string; total_engg_salary: string; nett: string }
+  unmatched_engineers: Array<{ engineer_name: string; closed_calls: number }>
+}
+
+export const fetchEngineerPnls = () =>
+  api.get<EngineerPnl[]>('/engineer-pnl/').then(res => res.data)
+export const createEngineerPnl = (data: EngineerPnlFormData) =>
+  api.post<EngineerPnl>('/engineer-pnl/', data).then(res => res.data)
+export const updateEngineerPnl = (id: number, data: Partial<EngineerPnlFormData>) =>
+  api.patch<EngineerPnl>(`/engineer-pnl/${id}/`, data).then(res => res.data)
+export const deleteEngineerPnl = (id: number) =>
+  api.delete(`/engineer-pnl/${id}/`).then(res => res.data)
+export const fetchEngineerPnlBoard = (params?: { month?: string; from?: string; to?: string; all?: boolean }) => {
+  const p = new URLSearchParams()
+  if (params?.from && params?.to) { p.set('from', params.from); p.set('to', params.to) }
+  else if (params?.month) p.set('month', params.month)
+  if (params?.all) p.set('all', '1')
+  const qs = p.toString() ? `?${p.toString()}` : ''
+  return api.get<EngineerPnlBoard>(`/engineer-pnl/board/${qs}`).then(res => res.data)
+}
 
 
 export default api

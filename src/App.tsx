@@ -15,10 +15,11 @@ import Quotes from '@/components/Quotes'
 import BillOfSupplies from '@/components/BillOfSupplies'
 import TaxInvoices from '@/components/TaxInvoices'
 import BankStatement from '@/components/BankStatement'
+import EngineerPnl from '@/components/EngineerPnl'
 import UserManagement from '@/components/UserManagement'
 import Settings from '@/components/Settings'
 import Login from '@/components/Login'
-import { LayoutDashboard, Receipt, BarChart3, MapPin, FileText, Truck, ShoppingCart, ClipboardList, ReceiptText, Wallet, FileSignature, ScrollText, BadgeIndianRupee, Landmark, Users, Settings as SettingsIcon, Loader2 } from 'lucide-react'
+import { LayoutDashboard, Receipt, BarChart3, MapPin, FileText, Truck, ShoppingCart, ClipboardList, ReceiptText, Wallet, FileSignature, ScrollText, BadgeIndianRupee, Landmark, Cpu, Users, Settings as SettingsIcon, Loader2 } from 'lucide-react'
 import type { SectionKey } from '@/lib/api'
 
 type TabKey = SectionKey | 'admin' | 'settings'
@@ -66,8 +67,8 @@ function App() {
   // Sections this user may access. Admins implicitly get everything; if the
   // field is missing (older token), fall back to all three sections.
   const allowed: SectionKey[] = isAdmin
-    ? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice', 'idfc', 'bob']
-    : (user.allowed_sections ?? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice', 'idfc', 'bob'])
+    ? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice', 'idfc', 'bob', 'engpnl']
+    : (user.allowed_sections ?? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice', 'idfc', 'bob', 'engpnl'])
 
   // Build the visible tab list from the user's access.
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
@@ -76,6 +77,7 @@ function App() {
     ...(allowed.includes('pnl') ? [{ key: 'pnl' as TabKey, label: 'P&L', icon: <BarChart3 className="w-5 h-5" /> }] : []),
     ...(allowed.includes('idfc') ? [{ key: 'idfc' as TabKey, label: 'IDFC Statement', icon: <Landmark className="w-5 h-5" /> }] : []),
     ...(allowed.includes('bob') ? [{ key: 'bob' as TabKey, label: 'BOB Statement', icon: <Landmark className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('engpnl') ? [{ key: 'engpnl' as TabKey, label: 'Engineer P&L', icon: <Cpu className="w-5 h-5" /> }] : []),
     ...(allowed.includes('region') ? [{ key: 'region' as TabKey, label: 'Region Expense', icon: <MapPin className="w-5 h-5" /> }] : []),
     ...(allowed.includes('invoice') ? [{ key: 'invoice' as TabKey, label: 'Invoice', icon: <FileText className="w-5 h-5" /> }] : []),
     ...(allowed.includes('challan') ? [{ key: 'challan' as TabKey, label: 'Delivery Challan', icon: <Truck className="w-5 h-5" /> }] : []),
@@ -120,6 +122,7 @@ function App() {
       {currentTab === 'taxinvoice' && allowed.includes('taxinvoice') && <TaxInvoices />}
       {currentTab === 'idfc' && allowed.includes('idfc') && <BankStatement bank="idfc" title="IDFC Statement" subtitle="Upload the IDFC Bank Excel export — rows become entries" />}
       {currentTab === 'bob' && allowed.includes('bob') && <BankStatement bank="bob" title="BOB Statement" subtitle="Upload the Bank of Baroda Excel export — rows become entries" />}
+      {currentTab === 'engpnl' && allowed.includes('engpnl') && <EngineerPnl />}
       {currentTab === 'admin' && isAdmin && <UserManagement />}
       {currentTab === 'settings' && isAdmin && <Settings />}
     </Layout>
