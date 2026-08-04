@@ -1134,6 +1134,12 @@ export const importBankStatement = (bank: BankKey, file: File) => {
 export const deleteBankStatementEntry = (bank: BankKey, id: number) =>
   api.delete(`${bankBase(bank)}/${id}/`).then(res => res.data)
 
+export const updateBankStatementEntry = (
+  bank: BankKey,
+  id: number,
+  data: Partial<Pick<BankStatementEntry, 'txn_date' | 'value_date' | 'narration' | 'ref_no' | 'debit' | 'credit' | 'balance' | 'balance_dc'>>,
+) => api.patch<BankStatementEntry>(`${bankBase(bank)}/${id}/`, data).then(res => res.data)
+
 export const clearBankStatements = (bank: BankKey) =>
   api.delete<{ detail: string; deleted: number }>(`${bankBase(bank)}/clear/`).then(res => res.data)
 

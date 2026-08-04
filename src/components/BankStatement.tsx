@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, X } from 'lucide-react'
+import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Pencil, X } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import {
-  fetchBankStatements, importBankStatement, deleteBankStatementEntry, clearBankStatements,
+  fetchBankStatements, importBankStatement, deleteBankStatementEntry, updateBankStatementEntry, clearBankStatements,
   type BankKey, type BankStatementEntry,
 } from '@/lib/api'
 
@@ -31,6 +31,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
   const [toDate, setToDate] = useState('')
   const [uploading, setUploading] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [editing, setEditing] = useState<BankStatementEntry | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = async () => {
@@ -101,6 +102,13 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
     } catch {
       addToast('error', 'Failed to delete row')
     }
+  }
+
+  const saveEdit = async (id: number, data: Partial<BankStatementEntry>) => {
+    const updated = await updateBankStatementEntry(bank, id, data)
+    setRows((p) => p.map((r) => (r.id === id ? updated : r)))
+    setEditing(null)
+    addToast('success', 'Entry updated')
   }
 
   return (
@@ -222,9 +230,14 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
                     <td className="p-3 text-right font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap align-top">{num(r.credit) ? inr(r.credit) : ''}</td>
                     <td className="p-3 text-right text-surface-700 dark:text-surface-300 whitespace-nowrap align-top">{r.balance != null ? `${inr(r.balance)}${r.balance_dc ? ' ' + r.balance_dc : ''}` : ''}</td>
                     <td className="p-3 text-right align-top">
-                      <button onClick={() => removeRow(r.id)} title="Delete row" className="p-1.5 rounded-lg text-surface-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setEditing(r)} title="Edit row" className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => removeRow(r.id)} title="Delete row" className="p-1.5 rounded-lg text-surface-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -239,6 +252,78 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
           <ClearButton busy={clearing} onConfirm={handleClear} count={rows.length} />
         </div>
       )}
+
+      {editing && (
+        <EditEntryModal entry={editing} onClose={() => setEditing(null)} onSave={(d) => saveEdit(editing.id, d)} />
+      )}
+    </div>
+  )
+}
+
+function EditEntryModal({ entry, onClose, onSave }: {
+  entry: BankStatementEntry
+  onClose: () => void
+  onSave: (data: Partial<BankStatementEntry>) => Promise<void>
+}) {
+  const [txnDate, setTxnDate] = useState(entry.txn_date ?? '')
+  const [valueDate, setValueDate] = useState(entry.value_date ?? '')
+  const [narration, setNarration] = useState(entry.narration)
+  const [refNo, setRefNo] = useState(entry.ref_no)
+  const [debit, setDebit] = useState(entry.debit ?? '0')
+  const [credit, setCredit] = useState(entry.credit ?? '0')
+  const [balance, setBalance] = useState(entry.balance ?? '')
+  const [balanceDc, setBalanceDc] = useState(entry.balance_dc)
+  const [saving, setSaving] = useState(false)
+
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500'
+  const labelCls = 'block text-xs font-medium text-surface-500 dark:text-surface-400 mb-1'
+
+  const submit = async () => {
+    setSaving(true)
+    try {
+      await onSave({
+        txn_date: txnDate || null,
+        value_date: valueDate || null,
+        narration: narration.trim(),
+        ref_no: refNo.trim(),
+        debit: debit === '' ? '0' : String(debit),
+        credit: credit === '' ? '0' : String(credit),
+        balance: balance === '' ? null : String(balance),
+        balance_dc: balanceDc,
+      })
+    } catch {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[95] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-surface-800 rounded-2xl p-5 w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-surface-900 dark:text-white">Edit entry</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"><X className="w-5 h-5 text-surface-400" /></button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className={labelCls}>Tran Date</label><input type="date" className={inputCls} value={txnDate} onChange={(e) => setTxnDate(e.target.value)} /></div>
+          <div><label className={labelCls}>Value Date</label><input type="date" className={inputCls} value={valueDate} onChange={(e) => setValueDate(e.target.value)} /></div>
+          <div className="col-span-2"><label className={labelCls}>Narration</label><textarea rows={2} className={inputCls} value={narration} onChange={(e) => setNarration(e.target.value)} /></div>
+          <div><label className={labelCls}>Chq / Ref No</label><input className={inputCls} value={refNo} onChange={(e) => setRefNo(e.target.value)} /></div>
+          <div><label className={labelCls}>Balance Cr/Dr</label>
+            <select className={inputCls} value={balanceDc} onChange={(e) => setBalanceDc(e.target.value)}>
+              <option value="">—</option><option value="Cr">Cr</option><option value="Dr">Dr</option>
+            </select>
+          </div>
+          <div><label className={labelCls}>Withdrawal (Debit)</label><input className={inputCls} value={debit} onChange={(e) => setDebit(e.target.value)} /></div>
+          <div><label className={labelCls}>Deposit (Credit)</label><input className={inputCls} value={credit} onChange={(e) => setCredit(e.target.value)} /></div>
+          <div className="col-span-2"><label className={labelCls}>Balance (INR)</label><input className={inputCls} value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="blank = none" /></div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700">Cancel</button>
+          <button onClick={submit} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-60">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
