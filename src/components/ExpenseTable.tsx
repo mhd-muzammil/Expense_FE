@@ -23,6 +23,9 @@ import {
   Building2,
   Tag,
   Upload,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Wallet,
 } from 'lucide-react'
 
 function SkeletonRow() {
@@ -39,7 +42,7 @@ function SkeletonRow() {
 
 export default function ExpenseTable() {
   const {
-    expenses, totalCount, pageSize, loadingExpenses,
+    expenses, totalCount, pageSize, loadingExpenses, dashboard, paymentModeBalances,
     filters, setFilters, resetFilters,
     removeExpense, loadExpenses, loadDashboard, importExpenses,
     submitting,
@@ -76,10 +79,11 @@ export default function ExpenseTable() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState(filters.search || '')
 
-  // 1. Reactive: Fetch expenses whenever filters change
+  // 1. Reactive: Fetch expenses + totals whenever filters change
   useEffect(() => {
     loadExpenses()
-  }, [filters, loadExpenses])
+    loadDashboard()
+  }, [filters, loadExpenses, loadDashboard])
 
   // 2. Reactive: Sync local search term with global filter state (e.g. if cleared via Reset All)
   useEffect(() => {
@@ -139,8 +143,30 @@ export default function ExpenseTable() {
     }
   }
 
+  const totalBalance = parseFloat(dashboard?.total_balance ?? '0')
+
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* Summary tiles — Entries / Total Credit / Debit / Balance (reflect the active filters) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-surface-500 dark:text-surface-400"><FileSpreadsheet className="w-3.5 h-3.5" /> Entries</div>
+          <div className="text-2xl font-bold text-surface-900 dark:text-white">{totalCount.toLocaleString('en-IN')}</div>
+        </div>
+        <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-500"><ArrowDownCircle className="w-3.5 h-3.5" /> Total Credit</div>
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(dashboard?.total_credits ?? 0)}</div>
+        </div>
+        <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-red-500"><ArrowUpCircle className="w-3.5 h-3.5" /> Total Debit</div>
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(dashboard?.total_debits ?? 0)}</div>
+        </div>
+        <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4 shadow-sm">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-primary-500"><Wallet className="w-3.5 h-3.5" /> Total Balance</div>
+          <div className={`text-2xl font-bold ${totalBalance >= 0 ? 'text-primary-600 dark:text-primary-400' : 'text-red-600 dark:text-red-400'}`}>{formatCurrency(dashboard?.total_balance ?? 0)}</div>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
@@ -170,6 +196,19 @@ export default function ExpenseTable() {
             </button>
           )}
         </div>
+
+        {/* Payment mode filter (separate selector) */}
+        <select
+          value={filters.payment_mode || ''}
+          onChange={(e) => setFilters({ payment_mode: e.target.value || undefined, page: 1 })}
+          title="Filter by payment mode"
+          className={`px-3 py-2.5 rounded-xl text-sm bg-white dark:bg-surface-800 border text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-primary-500/30 ${filters.payment_mode ? 'border-primary-500 text-primary-600 dark:text-primary-400 font-semibold' : 'border-surface-200 dark:border-surface-700'}`}
+        >
+          <option value="">All Modes (Overall)</option>
+          {paymentModeBalances.map((m) => (
+            <option key={m.id} value={m.payment_mode}>{m.payment_mode}</option>
+          ))}
+        </select>
 
         {/* Export Buttons */}
         <div className="flex items-center gap-2">

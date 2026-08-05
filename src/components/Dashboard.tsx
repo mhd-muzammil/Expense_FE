@@ -4,7 +4,7 @@ import { formatCurrency } from '@/lib/utils'
 import { getCategoryHex } from '@/lib/categories'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
 import { ExpenseDetailModal } from '@/components/BranchCard'
-import { setPaymentModeBalance, deletePaymentModeBalance, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense, fetchPettyCashSummary, createPettyCashDebit, updatePettyCashDebit, deletePettyCashDebit, downloadPettyCashExport, type PettyCashDebit, type PettyCashDebitFormData, type PettyCashSummary } from '@/lib/api'
+import { setPaymentModeBalance, deletePaymentModeBalance, renamePaymentMode, fetchDashboard, fetchPaymentModeBalances, fetchBillingReminders, createBillingReminder, updateBillingReminder, toggleBillingReminderPaid, deleteBillingReminder, fetchExpenses, type BillingReminder, type BillingReminderFormData, type Expense, fetchPettyCashSummary, createPettyCashDebit, updatePettyCashDebit, deletePettyCashDebit, downloadPettyCashExport, type PettyCashDebit, type PettyCashDebitFormData, type PettyCashSummary } from '@/lib/api'
 import {
   Wallet,
   TrendingUp,
@@ -36,6 +36,7 @@ import {
   ArrowLeft,
   Search,
   Download,
+  Tag,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -1274,7 +1275,7 @@ function getFinancialYears(): { label: string; value: string }[] {
 }
 
 export default function Dashboard() {
-  const { dashboard, loadingDashboard, branches, categories, filters, setFilters, loadDashboard, loadExpenses, paymentModeBalances, loadPaymentModeBalances, setActiveTab } = useExpenseStore()
+  const { dashboard, loadingDashboard, branches, categories, filters, setFilters, loadDashboard, loadExpenses, paymentModeBalances, loadPaymentModeBalances, setActiveTab, addToast } = useExpenseStore()
   const [editingMode, setEditingMode] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [showAddMode, setShowAddMode] = useState(false)
@@ -1284,6 +1285,8 @@ export default function Dashboard() {
   const [activePreset, setActivePreset] = useState('all')
   const [showCustom, setShowCustom] = useState(false)
   const [deletingMode, setDeletingMode] = useState<string | null>(null)
+  const [renamingMode, setRenamingMode] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const [pmFy, setPmFy] = useState(() => getFinancialYears()[0]?.value || '')
   const [pmMonth, setPmMonth] = useState(() => String(new Date().getMonth() + 1))
   const [pmLoading, setPmLoading] = useState(false)
@@ -1750,9 +1753,51 @@ export default function Dashboard() {
                       <div className="w-7 h-7 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
                         <CreditCard className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
                       </div>
-                      <span className="text-sm font-bold text-surface-800 dark:text-surface-200">{bal.payment_mode}</span>
+                      {renamingMode === bal.payment_mode ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            autoFocus
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                            className="w-36 px-2 py-1 rounded text-sm font-bold bg-white dark:bg-surface-800 border border-primary-400 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+                          />
+                          <button
+                            title="Save new name (updates all entries)"
+                            onClick={async () => {
+                              const nn = renameValue.trim()
+                              if (nn && nn.toLowerCase() !== bal.payment_mode.toLowerCase()) {
+                                try {
+                                  const res = await renamePaymentMode(bal.payment_mode, nn)
+                                  addToast('success', `${res.detail} (${res.updated_entries} entries updated)`)
+                                  await loadPaymentModeBalances()
+                                  const data = await fetchPaymentModeBalances(pmFy ? { fy: pmFy } : undefined)
+                                  setLocalPmBalances(data)
+                                  await loadExpenses(); await loadDashboard()
+                                } catch { addToast('error', 'Failed to rename') }
+                              }
+                              setRenamingMode(null)
+                            }}
+                            className="p-0.5 rounded hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
+                          >
+                            <Check className="w-3.5 h-3.5 text-emerald-500" />
+                          </button>
+                          <button onClick={() => setRenamingMode(null)} title="Cancel" className="p-0.5 rounded hover:bg-surface-200 dark:hover:bg-surface-700">
+                            <X className="w-3 h-3 text-surface-400" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold text-surface-800 dark:text-surface-200">{bal.payment_mode}</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-0.5">
+                      <button
+                        onClick={() => { setRenamingMode(bal.payment_mode); setRenameValue(bal.payment_mode) }}
+                        className="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+                        title="Rename mode (updates all entries)"
+                      >
+                        <Tag className="w-3 h-3 text-surface-400" />
+                      </button>
                       <button
                         onClick={() => { setEditingMode(bal.payment_mode); setEditValue(initial.toString()) }}
                         className="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"

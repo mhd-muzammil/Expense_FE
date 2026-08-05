@@ -155,6 +155,7 @@ export interface Filters {
   date_from?: string
   date_to?: string
   search?: string
+  payment_mode?: string
   page?: number
 }
 
@@ -336,6 +337,9 @@ export const setPaymentModeBalance = (payment_mode: string, initial_balance: num
 
 export const deletePaymentModeBalance = (payment_mode: string) =>
   api.delete('/payment-mode-balances/delete/', { data: { payment_mode } })
+
+export const renamePaymentMode = (old_name: string, new_name: string) =>
+  api.post<{ detail: string; updated_entries: number }>('/payment-mode-balances/rename/', { old_name, new_name }).then(res => res.data)
 
 // Billing Reminders
 export interface BillingReminder {

@@ -22,14 +22,20 @@ const FIXED_CATEGORIES = [
   'Petrol advance'
 ]
 
+const DEFAULT_PAYMENT_MODES = ['Cash', 'Bank Transfer', 'GPay', 'PhonePe', 'UPI', 'Cheque', 'Other']
+
 interface ExpenseFormProps {
   expense?: Expense | null
   onClose: () => void
 }
 
 export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
-  const { branches, categories, addExpense, editExpense, submitting } = useExpenseStore()
+  const { branches, categories, paymentModeBalances, addExpense, editExpense, submitting } = useExpenseStore()
   const mergedCategories = Array.from(new Set([...FIXED_CATEGORIES, ...categories]))
+  // Payment modes come from the actual configured modes (so a renamed mode
+  // shows its new name here too); fall back to defaults on a fresh setup.
+  const configuredModes = paymentModeBalances.map((b) => b.payment_mode).filter(Boolean)
+  const baseModes = configuredModes.length > 0 ? configuredModes : DEFAULT_PAYMENT_MODES
 
   const [formData, setFormData] = useState<ExpenseFormData>({
     date: expense?.date || new Date().toISOString().split('T')[0],
@@ -266,13 +272,13 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
                 className={inputClass}
               >
                 <option value="">Payment Mode</option>
-                <option value="Cash">Cash</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-                <option value="GPay">GPay</option>
-                <option value="PhonePe">PhonePe</option>
-                <option value="UPI">UPI</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Other">Other</option>
+                {Array.from(new Set([
+                  ...baseModes,
+                  (type === 'credit' ? formData.credit_payment_mode : formData.debit_payment_mode),
+                  'Other',
+                ].filter(Boolean))).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
               </select>
             </div>
             {(errors.credited_amount || errors.debited_amount) && (
