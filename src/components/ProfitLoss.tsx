@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, TrendingUp, TrendingDown, Building2, Calendar, X, Loader2, Receipt } from 'lucide-react'
+import { BarChart3, TrendingUp, TrendingDown, Building2, Calendar, X, Loader2, Receipt, Wallet } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
@@ -48,7 +48,7 @@ interface Drill {
 // Fetch every expense in a date range (+ optional branch), paging through the
 // paginated list endpoint. Category is filtered client-side (case-insensitive)
 // so it matches the P&L merge.
-async function fetchAllEntries(params: { branch?: string; date_from: string; date_to: string }): Promise<Expense[]> {
+async function fetchAllEntries(params: { branch?: string; date_from: string; date_to: string; payment_mode?: string }): Promise<Expense[]> {
   const all: Expense[] = []
   let page = 1
   for (;;) {
@@ -61,14 +61,14 @@ async function fetchAllEntries(params: { branch?: string; date_from: string; dat
 }
 
 export default function ProfitLoss() {
-  const { pnl, loadingPnl, pnlFilters, setPnlFilters, loadProfitLoss } = useExpenseStore()
+  const { pnl, loadingPnl, pnlFilters, setPnlFilters, loadProfitLoss, paymentModeBalances } = useExpenseStore()
   const [drill, setDrill] = useState<Drill | null>(null)
 
-  // Load on mount and whenever the P&L filters (fy / branch) change.
+  // Load on mount and whenever the P&L filters (fy / branch / payment_mode) change.
   useEffect(() => {
     loadProfitLoss()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pnlFilters.fy, pnlFilters.branch])
+  }, [pnlFilters.fy, pnlFilters.branch, pnlFilters.payment_mode])
 
   const months = pnl?.months ?? []
 
@@ -123,6 +123,21 @@ export default function ProfitLoss() {
               <option value="">All Branches</option>
               {(pnl?.branches ?? []).map((b) => (
                 <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Payment Mode */}
+          <div className="relative">
+            <Wallet className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+            <select
+              value={pnlFilters.payment_mode ?? ''}
+              onChange={(e) => setPnlFilters({ payment_mode: e.target.value || undefined })}
+              className="pl-9 pr-8 py-2.5 rounded-lg text-sm font-medium bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-200 focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+            >
+              <option value="">All Payment Modes</option>
+              {paymentModeBalances.map((m) => (
+                <option key={m.payment_mode} value={m.payment_mode}>{m.payment_mode}</option>
               ))}
             </select>
           </div>
@@ -412,6 +427,7 @@ function GridSkeleton() {
 
 // Drill-down modal: lists the individual expense entries that make up a P&L cell.
 function PnlDrillModal({ drill, onClose }: { drill: Drill; onClose: () => void }) {
+  const paymentMode = useExpenseStore((s) => s.pnlFilters.payment_mode)
   const [entries, setEntries] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const isIncome = drill.kind === 'income'
@@ -419,7 +435,7 @@ function PnlDrillModal({ drill, onClose }: { drill: Drill; onClose: () => void }
   useEffect(() => {
     let alive = true
     setLoading(true)
-    fetchAllEntries({ branch: drill.branch, date_from: drill.dateFrom, date_to: drill.dateTo })
+    fetchAllEntries({ branch: drill.branch, date_from: drill.dateFrom, date_to: drill.dateTo, payment_mode: paymentMode })
       .then((rows) => {
         if (!alive) return
         const target = canon(drill.category)
@@ -434,7 +450,7 @@ function PnlDrillModal({ drill, onClose }: { drill: Drill; onClose: () => void }
       .catch(() => alive && setEntries([]))
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [drill, isIncome])
+  }, [drill, isIncome, paymentMode])
 
   const amountOf = (e: Expense) => parseFloat((isIncome ? e.credited_amount : e.debited_amount) || '0')
   const total = entries.reduce((s, e) => s + amountOf(e), 0)

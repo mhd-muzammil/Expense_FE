@@ -234,10 +234,11 @@ export interface ProfitLossData {
   net_profit: string
 }
 
-export const fetchProfitLoss = (params: { fy?: number | string; branch?: string } = {}) => {
+export const fetchProfitLoss = (params: { fy?: number | string; branch?: string; payment_mode?: string } = {}) => {
   const query = new URLSearchParams()
   if (params.fy !== undefined && params.fy !== '') query.set('fy', String(params.fy))
   if (params.branch) query.set('branch', params.branch)
+  if (params.payment_mode) query.set('payment_mode', params.payment_mode)
   const qs = query.toString()
   return api.get<ProfitLossData>(`/profit-loss/${qs ? '?' + qs : ''}`).then(res => res.data)
 }

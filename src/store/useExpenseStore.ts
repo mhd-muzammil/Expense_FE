@@ -61,7 +61,7 @@ interface ExpenseStore {
   filters: Filters
   // P&L has its own filters (financial year + branch), independent of the
   // global expense filters so switching tabs doesn't cross-contaminate.
-  pnlFilters: { fy?: number; branch?: string }
+  pnlFilters: { fy?: number; branch?: string; payment_mode?: string }
 
   // UI
   toasts: Toast[]
@@ -77,7 +77,7 @@ interface ExpenseStore {
   setBranches: (branches: Branch[]) => void
   setFilters: (filters: Partial<Filters>) => void
   resetFilters: () => void
-  setPnlFilters: (filters: Partial<{ fy?: number; branch?: string }>) => void
+  setPnlFilters: (filters: Partial<{ fy?: number; branch?: string; payment_mode?: string }>) => void
 
   loadBranches: () => Promise<void>
   loadCategories: () => Promise<void>
@@ -199,6 +199,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       const pnlFilters = { ...state.pnlFilters, ...newFilters }
       if (pnlFilters.branch === undefined || pnlFilters.branch === '') delete pnlFilters.branch
       if (pnlFilters.fy === undefined) delete pnlFilters.fy
+      if (pnlFilters.payment_mode === undefined || pnlFilters.payment_mode === '') delete pnlFilters.payment_mode
       return { pnlFilters }
     })
   },
