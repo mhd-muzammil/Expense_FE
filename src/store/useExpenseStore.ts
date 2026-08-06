@@ -49,6 +49,7 @@ interface ExpenseStore {
   pnl: ProfitLossData | null
   totalCount: number
   pageSize: number
+  statementSummary: { in_statement: number; not_in_statement: number }
 
   // Loading states
   loadingBranches: boolean
@@ -115,6 +116,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
   pnl: null,
   totalCount: 0,
   pageSize: 50,
+  statementSummary: { in_statement: 0, not_in_statement: 0 },
 
   loadingBranches: false,
   loadingExpenses: false,
@@ -235,6 +237,7 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
         expenses: data.results,
         totalCount: data.count,
         pageSize: data.page_size ?? get().pageSize,
+        statementSummary: data.statement_summary ?? { in_statement: 0, not_in_statement: 0 },
         loadingExpenses: false,
       })
     } catch (err) {

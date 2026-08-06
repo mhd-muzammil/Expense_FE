@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { getCategoryBadgeClass } from '@/lib/categories'
-import type { Expense } from '@/lib/api'
+import type { Expense, MatchedStatement } from '@/lib/api'
 import { downloadExport, fetchExpenseFilterOptions } from '@/lib/api'
 import ExpenseForm from './ExpenseForm'
 
@@ -26,12 +26,16 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Wallet,
+  CheckCircle2,
+  AlertCircle,
+  Landmark,
+  Receipt,
 } from 'lucide-react'
 
 function SkeletonRow() {
   return (
     <tr className="border-b border-surface-100 dark:border-surface-700/50">
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <td key={i} className="p-3">
           <div className="skeleton h-4 w-full" />
         </td>
@@ -42,7 +46,7 @@ function SkeletonRow() {
 
 export default function ExpenseTable() {
   const {
-    expenses, totalCount, pageSize, loadingExpenses, dashboard, paymentModeBalances,
+    expenses, totalCount, pageSize, loadingExpenses, dashboard, paymentModeBalances, statementSummary,
     filters, setFilters, resetFilters,
     removeExpense, loadExpenses, loadDashboard, importExpenses,
     submitting,
@@ -76,6 +80,7 @@ export default function ExpenseTable() {
   const [showForm, setShowForm] = useState(false)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [viewingExpense, setViewingExpense] = useState<Expense | null>(null)
+  const [viewingStatement, setViewingStatement] = useState<MatchedStatement | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState(filters.search || '')
 
@@ -167,6 +172,20 @@ export default function ExpenseTable() {
         </div>
       </div>
 
+      {/* Reconciliation strip: how many entries are matched with the bank statements */}
+      {(statementSummary.in_statement > 0 || statementSummary.not_in_statement > 0) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-1">
+          <span className="text-xs font-semibold text-surface-500 dark:text-surface-400">Matched with Statement:</span>
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="w-4 h-4" /> {statementSummary.in_statement.toLocaleString('en-IN')} in Statement
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-600 dark:text-amber-400">
+            <AlertCircle className="w-4 h-4" /> {statementSummary.not_in_statement.toLocaleString('en-IN')} not in Statement
+          </span>
+          <span className="text-xs text-surface-400 dark:text-surface-500">(bank-mode entries, across the current filter)</span>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
@@ -208,6 +227,7 @@ export default function ExpenseTable() {
           {paymentModeBalances.map((m) => (
             <option key={m.id} value={m.payment_mode}>{m.payment_mode}</option>
           ))}
+          <option value="__none__">No Mode (blank)</option>
         </select>
 
         {/* Export Buttons */}
@@ -406,6 +426,7 @@ export default function ExpenseTable() {
                 <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Remark</th>
                 <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Person</th>
                 <th className="text-left p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Mode</th>
+                <th className="text-center p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Statement</th>
                 <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Balance</th>
                 <th className="text-center p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">Actions</th>
               </tr>
@@ -415,7 +436,7 @@ export default function ExpenseTable() {
                 Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
               ) : expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="text-center py-12 text-surface-400">
+                  <td colSpan={12} className="text-center py-12 text-surface-400">
                     <div className="flex flex-col items-center gap-2">
                       <FileSpreadsheet className="w-10 h-10 text-surface-300" />
                       <p className="text-base font-medium">No expenses found</p>
@@ -480,6 +501,23 @@ export default function ExpenseTable() {
                       </td>
                       <td className="p-3 text-surface-500 dark:text-surface-400 text-xs whitespace-nowrap">
                         {mode || '—'}
+                      </td>
+                      <td className="p-3 text-center whitespace-nowrap">
+                        {expense.statement_status === 'in_statement' && expense.matched_statement ? (
+                          <button
+                            onClick={() => setViewingStatement(expense.matched_statement!)}
+                            title="Click to see the bank-statement row"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:ring-1 hover:ring-emerald-300 dark:hover:ring-emerald-700 transition-colors cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> In Statement
+                          </button>
+                        ) : expense.statement_status === 'not_in_statement' ? (
+                          <span title="This bank-mode entry is not in the imported statement" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                            <AlertCircle className="w-3.5 h-3.5" /> Not in Statement
+                          </span>
+                        ) : (
+                          <span className="text-surface-300 dark:text-surface-600 text-xs">—</span>
+                        )}
                       </td>
                       <td className="p-3 text-right whitespace-nowrap">
                         <div className="flex flex-col gap-0.5 items-end justify-center">
@@ -596,6 +634,9 @@ export default function ExpenseTable() {
                   ['Remark', (isCredit ? viewingExpense.credit_remark : viewingExpense.debit_remark) || '—'],
                   ['Person', (isCredit ? viewingExpense.credit_person : viewingExpense.debit_person) || '—'],
                   ['Payment Mode', (isCredit ? viewingExpense.credit_payment_mode : viewingExpense.debit_payment_mode) || '—'],
+                  ...(viewingExpense.statement_status
+                    ? [['Bank Statement', viewingExpense.statement_status === 'in_statement' ? '✓ In Statement' : '⚠ Not in Statement']]
+                    : []),
                   ...Object.entries(viewingExpense.running_balances || {})
                     .filter(([, val]) => parseFloat(val as string) !== 0)
                     .map(([mode, val]) => [`${mode} Balance`, formatCurrency(parseFloat(val as string))]),
@@ -619,6 +660,11 @@ export default function ExpenseTable() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Matched bank-statement row */}
+      {viewingStatement && (
+        <MatchedStatementModal statement={viewingStatement} onClose={() => setViewingStatement(null)} />
       )}
 
       {/* Delete Confirmation */}
@@ -656,6 +702,56 @@ export default function ExpenseTable() {
         </div>
       )}
 
+    </div>
+  )
+}
+
+// Shows the bank-statement row that an expense entry reconciled against.
+function MatchedStatementModal({ statement, onClose }: { statement: MatchedStatement; onClose: () => void }) {
+  const debit = parseFloat(statement.debit || '0')
+  const credit = parseFloat(statement.credit || '0')
+  const isCredit = credit > 0
+  const amtColor = isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+  const rows: Array<[string, string]> = [
+    ['Bank', statement.bank_display || '—'],
+    ['Tran Date', statement.txn_date ? formatDate(statement.txn_date) : '—'],
+    ['Value Date', statement.value_date ? formatDate(statement.value_date) : '—'],
+    ['Chq / Ref No', statement.ref_no || '—'],
+    ['Balance', statement.balance != null ? `${formatCurrency(statement.balance)}${statement.balance_dc ? ' ' + statement.balance_dc : ''}` : '—'],
+  ]
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-white dark:bg-surface-800 rounded-2xl shadow-2xl animate-fade-in overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 dark:border-surface-700">
+          <div className="flex items-center gap-2">
+            <Landmark className="w-5 h-5 text-primary-500" />
+            <h2 className="text-lg font-semibold text-surface-900 dark:text-white">Bank Statement Row</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors">
+            <X className="w-5 h-5 text-surface-500" />
+          </button>
+        </div>
+        <div className="px-6 py-4 flex items-center justify-between bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700">
+          <span className="text-sm font-medium text-surface-500 dark:text-surface-400">{isCredit ? 'Deposit (Cr)' : 'Withdrawal (Dr)'}</span>
+          <span className={`text-xl font-bold ${amtColor}`}>{formatCurrency(isCredit ? credit : debit)}</span>
+        </div>
+        <div className="p-6 space-y-3">
+          {statement.narration && (
+            <div className="flex items-start gap-2 pb-2 border-b border-surface-50 dark:border-surface-700/50">
+              <Receipt className="w-4 h-4 text-surface-400 mt-0.5 shrink-0" />
+              <span className="text-sm text-surface-700 dark:text-surface-300 break-words">{statement.narration}</span>
+            </div>
+          )}
+          {rows.map(([label, value]) => (
+            <div key={label} className="flex justify-between items-center py-1.5 border-b border-surface-50 dark:border-surface-700/50 last:border-0">
+              <span className="text-sm text-surface-500 dark:text-surface-400">{label}</span>
+              <span className="text-sm font-medium text-surface-900 dark:text-white text-right break-words">{value}</span>
+            </div>
+          ))}
+          <p className="text-xs text-surface-400 dark:text-surface-500 pt-1">Statement row #{statement.id} · matched by date + amount + mode.</p>
+        </div>
+      </div>
     </div>
   )
 }

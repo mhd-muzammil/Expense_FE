@@ -98,7 +98,26 @@ export interface Expense {
   debit_person: string
   debit_payment_mode: string
   running_balances?: Record<string, string | number>
+  // Reconciliation vs the bank statements: 'in_statement' / 'not_in_statement'
+  // for IDFC/BOB-mode entries, null for other modes (Cash, UPI, …).
+  statement_status?: 'in_statement' | 'not_in_statement' | null
+  // The bank-statement row this entry reconciled to (null when not matched).
+  matched_statement?: MatchedStatement | null
   created_at: string
+}
+
+export interface MatchedStatement {
+  id: number
+  bank: BankKey
+  bank_display: string
+  txn_date: string | null
+  value_date: string | null
+  narration: string
+  ref_no: string
+  debit: string
+  credit: string
+  balance: string | null
+  balance_dc: string
 }
 
 export interface ExpenseFormData {
@@ -147,6 +166,8 @@ export interface PaginatedResponse<T> {
   previous: string | null
   page_size?: number
   results: T[]
+  // Expenses list only: reconciliation totals across the full filtered set.
+  statement_summary?: { in_statement: number; not_in_statement: number }
 }
 
 export interface Filters {
@@ -1107,6 +1128,28 @@ export interface BankStatementEntry {
   balance_dc: string
   source_file: string
   uploaded_at: string
+  // Reconciliation against the Expenses ledger (present on the list endpoint):
+  // 'matched' = a same date/amount/side entry exists under this bank's mode.
+  expense_status?: 'matched' | 'missing'
+  // The Expenses entry this row was matched to (null when missing).
+  matched_expense?: MatchedExpense | null
+}
+
+export interface MatchedExpense {
+  id: number
+  date: string | null
+  category: string
+  branch: string
+  side: 'debit' | 'credit'
+  amount: string
+  mode: string
+  remark: string
+  person: string
+}
+
+export interface BankStatementResponse {
+  results: BankStatementEntry[]
+  summary: { total: number; matched: number; missing: number; suggested_mode: string }
 }
 
 export interface BankImportResult {
@@ -1125,7 +1168,7 @@ export const fetchBankStatements = (bank: BankKey, opts?: { search?: string; fro
   if (opts?.from) p.set('from', opts.from)
   if (opts?.to) p.set('to', opts.to)
   const qs = p.toString() ? `?${p.toString()}` : ''
-  return api.get<BankStatementEntry[]>(`${bankBase(bank)}/${qs}`).then(res => res.data)
+  return api.get<BankStatementResponse>(`${bankBase(bank)}/${qs}`).then(res => res.data)
 }
 
 export const importBankStatement = (bank: BankKey, file: File) => {

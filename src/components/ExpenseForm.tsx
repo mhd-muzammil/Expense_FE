@@ -26,10 +26,13 @@ const DEFAULT_PAYMENT_MODES = ['Cash', 'Bank Transfer', 'GPay', 'PhonePe', 'UPI'
 
 interface ExpenseFormProps {
   expense?: Expense | null
+  // Seed values for a brand-new entry (e.g. pre-filled from a bank-statement row).
+  prefill?: Partial<ExpenseFormData>
+  initialType?: 'credit' | 'debit'
   onClose: () => void
 }
 
-export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
+export default function ExpenseForm({ expense, prefill, initialType, onClose }: ExpenseFormProps) {
   const { branches, categories, paymentModeBalances, addExpense, editExpense, submitting } = useExpenseStore()
   const mergedCategories = Array.from(new Set([...FIXED_CATEGORIES, ...categories]))
   // Payment modes come from the actual configured modes (so a renamed mode
@@ -38,21 +41,21 @@ export default function ExpenseForm({ expense, onClose }: ExpenseFormProps) {
   const baseModes = configuredModes.length > 0 ? configuredModes : DEFAULT_PAYMENT_MODES
 
   const [formData, setFormData] = useState<ExpenseFormData>({
-    date: expense?.date || new Date().toISOString().split('T')[0],
-    category: expense?.category || mergedCategories[0] || '',
-    branch: expense?.branch_location || (branches[0]?.location || ''),
-    credited_amount: expense?.credited_amount ? parseFloat(expense.credited_amount) : null,
-    credit_remark: expense?.credit_remark || '',
-    credit_person: expense?.credit_person || '',
-    credit_payment_mode: expense?.credit_payment_mode || '',
-    debited_amount: expense?.debited_amount ? parseFloat(expense.debited_amount) : null,
-    debit_remark: expense?.debit_remark || '',
-    debit_person: expense?.debit_person || '',
-    debit_payment_mode: expense?.debit_payment_mode || '',
+    date: expense?.date || prefill?.date || new Date().toISOString().split('T')[0],
+    category: expense?.category || prefill?.category || mergedCategories[0] || '',
+    branch: expense?.branch_location || prefill?.branch || (branches[0]?.location || ''),
+    credited_amount: expense?.credited_amount ? parseFloat(expense.credited_amount) : (prefill?.credited_amount ?? null),
+    credit_remark: expense?.credit_remark || prefill?.credit_remark || '',
+    credit_person: expense?.credit_person || prefill?.credit_person || '',
+    credit_payment_mode: expense?.credit_payment_mode || prefill?.credit_payment_mode || '',
+    debited_amount: expense?.debited_amount ? parseFloat(expense.debited_amount) : (prefill?.debited_amount ?? null),
+    debit_remark: expense?.debit_remark || prefill?.debit_remark || '',
+    debit_person: expense?.debit_person || prefill?.debit_person || '',
+    debit_payment_mode: expense?.debit_payment_mode || prefill?.debit_payment_mode || '',
   })
 
   const [type, setType] = useState<'credit' | 'debit'>(
-    expense?.debited_amount && parseFloat(expense.debited_amount) > 0 ? 'debit' : 'credit'
+    initialType || (expense?.debited_amount && parseFloat(expense.debited_amount) > 0 ? 'debit' : 'credit')
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
 

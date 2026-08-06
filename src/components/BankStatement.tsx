@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Pencil, X } from 'lucide-react'
+import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Pencil, X, CheckCircle2, AlertCircle, Receipt, Tag, User, Calendar } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
+import ExpenseForm from './ExpenseForm'
 import {
   fetchBankStatements, importBankStatement, deleteBankStatementEntry, updateBankStatementEntry, clearBankStatements,
-  type BankKey, type BankStatementEntry,
+  type BankKey, type BankStatementEntry, type MatchedExpense, type ExpenseFormData,
 } from '@/lib/api'
+
+// Fallback Expenses payment-mode label per bank, used only when the ledger has
+// no prior entry to learn the user's chosen mode name from.
+const FALLBACK_MODE: Record<BankKey, string> = { idfc: 'IDFC Bank', bob: 'Bank of Baroda' }
 
 const num = (v: string | null | undefined) => {
   const n = parseFloat(v ?? '0')
@@ -25,6 +30,9 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
   const addToast = useExpenseStore((s) => s.addToast)
 
   const [rows, setRows] = useState<BankStatementEntry[]>([])
+  const [summary, setSummary] = useState({ total: 0, matched: 0, missing: 0 })
+  const [suggestedMode, setSuggestedMode] = useState('')
+  const [onlyMissing, setOnlyMissing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
@@ -32,22 +40,33 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
   const [uploading, setUploading] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [editing, setEditing] = useState<BankStatementEntry | null>(null)
+  const [viewingMatch, setViewingMatch] = useState<MatchedExpense | null>(null)
+  const [addingFor, setAddingFor] = useState<BankStatementEntry | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = async () => {
     setLoading(true)
     try {
-      setRows(await fetchBankStatements(bank, {
+      const res = await fetchBankStatements(bank, {
         search: search || undefined,
         from: fromDate || undefined,
         to: toDate || undefined,
-      }))
+      })
+      setRows(res.results)
+      setSummary(res.summary)
+      setSuggestedMode(res.summary.suggested_mode || '')
     } catch {
       addToast('error', `Failed to load ${title}`)
     } finally {
       setLoading(false)
     }
   }
+
+  // Rows shown in the table (optionally only the ones missing from Expenses).
+  const displayRows = useMemo(
+    () => (onlyMissing ? rows.filter((r) => r.expense_status === 'missing') : rows),
+    [rows, onlyMissing],
+  )
 
   useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [bank])
   useEffect(() => {
@@ -88,6 +107,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
       const res = await clearBankStatements(bank)
       addToast('success', res.detail || 'Cleared')
       setRows([])
+      setSummary({ total: 0, matched: 0, missing: 0 })
     } catch {
       addToast('error', 'Failed to clear')
     } finally {
@@ -105,10 +125,11 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
   }
 
   const saveEdit = async (id: number, data: Partial<BankStatementEntry>) => {
-    const updated = await updateBankStatementEntry(bank, id, data)
-    setRows((p) => p.map((r) => (r.id === id ? updated : r)))
+    await updateBankStatementEntry(bank, id, data)
     setEditing(null)
     addToast('success', 'Entry updated')
+    // Reload so the reconciliation status re-computes against the new amount/date.
+    await load()
   }
 
   return (
@@ -193,16 +214,52 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
         </div>
       </div>
 
+      {/* Reconciliation strip: how many statement rows are recorded in Expenses */}
+      {!loading && rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 px-1">
+          <span className="text-xs font-semibold text-surface-500 dark:text-surface-400">Matched with Expenses:</span>
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="w-4 h-4" /> {summary.matched} in Expenses
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-600 dark:text-amber-400">
+            <AlertCircle className="w-4 h-4" /> {summary.missing} not in Expenses
+          </span>
+          {summary.missing > 0 && (
+            <button
+              onClick={() => setOnlyMissing((v) => !v)}
+              className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                onlyMissing
+                  ? 'bg-amber-600 text-white hover:bg-amber-700'
+                  : 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+              }`}
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              {onlyMissing ? 'Show all rows' : 'Show only missing'}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="rounded-2xl bg-white dark:bg-surface-800 shadow-sm border border-surface-100 dark:border-surface-700 overflow-hidden">
         {loading ? (
           <div className="p-6 space-y-3">
             {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-12 rounded-lg" />)}
           </div>
-        ) : rows.length === 0 ? (
+        ) : displayRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Landmark className="w-12 h-12 text-surface-300 dark:text-surface-600 mb-3" />
-            <p className="text-surface-500 dark:text-surface-400 font-medium">No entries yet</p>
-            <button onClick={() => fileRef.current?.click()} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">Upload the bank's Excel statement →</button>
+            {onlyMissing && rows.length > 0 ? (
+              <>
+                <CheckCircle2 className="w-12 h-12 text-emerald-400 dark:text-emerald-500 mb-3" />
+                <p className="text-surface-500 dark:text-surface-400 font-medium">Every statement row is recorded in Expenses 🎉</p>
+                <button onClick={() => setOnlyMissing(false)} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">Show all rows</button>
+              </>
+            ) : (
+              <>
+                <Landmark className="w-12 h-12 text-surface-300 dark:text-surface-600 mb-3" />
+                <p className="text-surface-500 dark:text-surface-400 font-medium">No entries yet</p>
+                <button onClick={() => fileRef.current?.click()} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">Upload the bank's Excel statement →</button>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -216,11 +273,12 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
                   <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">WITHDRAWAL (DR)</th>
                   <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">DEPOSIT (CR)</th>
                   <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">BALANCE (INR)</th>
+                  <th className="text-center p-3 font-semibold text-surface-600 dark:text-surface-400 whitespace-nowrap">STATUS</th>
                   <th className="text-right p-3 font-semibold text-surface-600 dark:text-surface-400"></th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {displayRows.map((r) => (
                   <tr key={r.id} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30 transition-colors">
                     <td className="p-3 text-surface-700 dark:text-surface-300 whitespace-nowrap align-top">{fmtDate(r.txn_date)}</td>
                     <td className="p-3 text-surface-500 dark:text-surface-400 whitespace-nowrap align-top">{fmtDate(r.value_date)}</td>
@@ -229,6 +287,25 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
                     <td className="p-3 text-right font-medium text-red-600 dark:text-red-400 whitespace-nowrap align-top">{num(r.debit) ? inr(r.debit) : ''}</td>
                     <td className="p-3 text-right font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap align-top">{num(r.credit) ? inr(r.credit) : ''}</td>
                     <td className="p-3 text-right text-surface-700 dark:text-surface-300 whitespace-nowrap align-top">{r.balance != null ? `${inr(r.balance)}${r.balance_dc ? ' ' + r.balance_dc : ''}` : ''}</td>
+                    <td className="p-3 text-center whitespace-nowrap align-top">
+                      {r.expense_status === 'matched' && r.matched_expense ? (
+                        <button
+                          onClick={() => setViewingMatch(r.matched_expense!)}
+                          title="Click to see the Expenses entry"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 hover:ring-1 hover:ring-emerald-300 dark:hover:ring-emerald-700 transition-colors cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> In Expenses
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setAddingFor(r)}
+                          title="Click to add this transaction to Expenses"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/50 hover:ring-1 hover:ring-amber-300 dark:hover:ring-amber-700 transition-colors cursor-pointer"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" /> Not in Expenses
+                        </button>
+                      )}
+                    </td>
                     <td className="p-3 text-right align-top">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => setEditing(r)} title="Edit row" className="p-1.5 rounded-lg text-surface-400 hover:text-primary-600 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors">
@@ -256,6 +333,77 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
       {editing && (
         <EditEntryModal entry={editing} onClose={() => setEditing(null)} onSave={(d) => saveEdit(editing.id, d)} />
       )}
+
+      {viewingMatch && (
+        <MatchedExpenseModal match={viewingMatch} onClose={() => setViewingMatch(null)} />
+      )}
+
+      {addingFor && (() => {
+        const isDebit = num(addingFor.debit) > 0
+        const amt = isDebit ? num(addingFor.debit) : num(addingFor.credit)
+        const mode = suggestedMode || FALLBACK_MODE[bank]
+        const prefill: Partial<ExpenseFormData> = {
+          date: addingFor.txn_date || undefined,
+          debited_amount: isDebit ? amt : null,
+          credited_amount: isDebit ? null : amt,
+          debit_payment_mode: isDebit ? mode : '',
+          credit_payment_mode: isDebit ? '' : mode,
+          debit_remark: isDebit ? addingFor.narration : '',
+          credit_remark: isDebit ? '' : addingFor.narration,
+        }
+        return (
+          <ExpenseForm
+            prefill={prefill}
+            initialType={isDebit ? 'debit' : 'credit'}
+            onClose={() => { setAddingFor(null); load() }}
+          />
+        )
+      })()}
+    </div>
+  )
+}
+
+// Shows the Expenses entry that a bank-statement row was reconciled against.
+function MatchedExpenseModal({ match, onClose }: { match: MatchedExpense; onClose: () => void }) {
+  const isCredit = match.side === 'credit'
+  const amtColor = isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+  const rows: Array<{ icon: React.ReactNode; label: string; value: string }> = [
+    { icon: <Calendar className="w-4 h-4" />, label: 'Date', value: match.date ? fmtDate(match.date) : '—' },
+    { icon: <Tag className="w-4 h-4" />, label: 'Category', value: match.category || '—' },
+    { icon: <Landmark className="w-4 h-4" />, label: 'Branch', value: match.branch || '—' },
+    { icon: <Wallet className="w-4 h-4" />, label: 'Payment Mode', value: match.mode || '—' },
+    { icon: <User className="w-4 h-4" />, label: 'Person', value: match.person || '—' },
+    { icon: <Receipt className="w-4 h-4" />, label: 'Remark', value: match.remark || '—' },
+  ]
+  return (
+    <div className="fixed inset-0 z-[95] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-surface-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+            <h3 className="font-bold text-surface-900 dark:text-white">Matched Expenses Entry</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"><X className="w-5 h-5 text-surface-400" /></button>
+        </div>
+        <div className="px-5 py-4 flex items-center justify-between bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700">
+          <span className="text-sm font-medium text-surface-500 dark:text-surface-400">{isCredit ? 'Credit (Deposit)' : 'Debit (Withdrawal)'}</span>
+          <span className={`text-xl font-bold ${amtColor}`}>₹{inr(match.amount)}</span>
+        </div>
+        <div className="p-5 space-y-3">
+          {rows.map((r) => (
+            <div key={r.label} className="flex items-start gap-3">
+              <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-surface-100 dark:bg-surface-700 text-surface-500 dark:text-surface-300 shrink-0">{r.icon}</span>
+              <div className="min-w-0">
+                <div className="text-xs text-surface-400 dark:text-surface-500">{r.label}</div>
+                <div className="text-sm font-medium text-surface-800 dark:text-surface-200 break-words">{r.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="px-5 pb-5">
+          <p className="text-xs text-surface-400 dark:text-surface-500">Expenses entry #{match.id} · matched by date + amount + mode.</p>
+        </div>
+      </div>
     </div>
   )
 }
