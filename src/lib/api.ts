@@ -52,7 +52,7 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
-export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl'
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice'
 
 export interface AuthUser {
   username: string
@@ -1273,6 +1273,108 @@ export const fetchEngineerPnlBoard = (params?: { month?: string; from?: string; 
   if (params?.all) p.set('all', '1')
   const qs = p.toString() ? `?${p.toString()}` : ''
   return api.get<EngineerPnlBoard>(`/engineer-pnl/board/${qs}`).then(res => res.data)
+}
+
+
+// Sleek Bill Invoice Register — imported invoices mirroring the Sleek Bill list
+export interface SleekBillInvoice {
+  id: number
+  invoice_number: string
+  invoice_type: string
+  client_name: string
+  client_gstin: string
+  client_phone: string
+  client_email: string
+  client_city: string
+  client_state: string
+  creator_name: string
+  issue_date: string | null
+  due_date: string | null
+  date_of_payment: string | null
+  currency: string
+  amount: string
+  tax: string
+  total: string
+  amount_paid: string
+  balance: string
+  status: string
+  dr_cr: string
+  cgst: string
+  sgst: string
+  igst: string
+  payment_mode: string
+  payment_info: string
+  financial_year: string
+  source_file: string
+  imported_at: string
+  has_pdf: boolean
+}
+
+export interface SleekBillSummary {
+  count: number
+  tax_invoice: number
+  bill_of_supply: number
+  amount: string
+  tax: string
+  total: string
+  paid: string
+  balance: string
+}
+
+export interface SleekBillResponse {
+  count: number
+  next: string | null
+  previous: string | null
+  page_size?: number
+  results: SleekBillInvoice[]
+  summary: SleekBillSummary
+}
+
+export const fetchSleekBillInvoices = (opts?: { type?: string; status?: string; search?: string; from?: string; to?: string; page?: number }) => {
+  const p = new URLSearchParams()
+  if (opts?.type) p.set('type', opts.type)
+  if (opts?.status) p.set('status', opts.status)
+  if (opts?.search) p.set('search', opts.search)
+  if (opts?.from) p.set('from', opts.from)
+  if (opts?.to) p.set('to', opts.to)
+  if (opts?.page) p.set('page', String(opts.page))
+  const qs = p.toString() ? `?${p.toString()}` : ''
+  return api.get<SleekBillResponse>(`/sleekbill-invoices/${qs}`).then(res => res.data)
+}
+
+export const importSleekBillInvoices = (file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post<{ detail: string; created: number; updated: number; skipped: number; errors: string[] }>(
+    '/sleekbill-invoices/import/', form, { headers: { 'Content-Type': 'multipart/form-data' } },
+  ).then(res => res.data)
+}
+
+export const clearSleekBillInvoices = () =>
+  api.delete<{ detail: string; deleted: number }>('/sleekbill-invoices/clear/').then(res => res.data)
+
+// Open an attached invoice PDF in a new tab (fetched with auth → blob URL).
+export const openInvoicePdf = async (id: number) => {
+  const res = await api.get(`/sleekbill-invoices/${id}/pdf/`, { responseType: 'blob' })
+  const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }))
+  window.open(url, '_blank')
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
+export const attachInvoicePdf = (id: number, file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post<{ detail: string }>(`/sleekbill-invoices/${id}/upload-pdf/`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(res => res.data)
+}
+
+export const bulkAttachInvoicePdfs = (files: File[]) => {
+  const form = new FormData()
+  files.forEach((f) => form.append('files', f))
+  return api.post<{ detail: string; matched: number; unmatched: string[] }>(
+    '/sleekbill-invoices/upload-pdfs/', form, { headers: { 'Content-Type': 'multipart/form-data' } },
+  ).then(res => res.data)
 }
 
 
