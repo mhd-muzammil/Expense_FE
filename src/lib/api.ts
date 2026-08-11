@@ -52,7 +52,7 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
-export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice'
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice' | 'subscription'
 
 export interface AuthUser {
   username: string
@@ -1376,6 +1376,45 @@ export const bulkAttachInvoicePdfs = (files: File[]) => {
     '/sleekbill-invoices/upload-pdfs/', form, { headers: { 'Content-Type': 'multipart/form-data' } },
   ).then(res => res.data)
 }
+
+
+// Subscriptions — tracked service subscriptions with renewal dates + reminders
+export interface Subscription {
+  id: number
+  name: string
+  vendor: string
+  amount: string
+  cycle: 'monthly' | 'quarterly' | 'half_yearly' | 'yearly' | 'one_time'
+  renewal_date: string
+  reminder_days_before: number
+  auto_renew: boolean
+  notes: string
+  active: boolean
+  days_left: number | null
+  status: 'active' | 'expiring_soon' | 'expired'
+  created_at: string
+}
+
+export interface SubscriptionFormData {
+  name: string
+  vendor: string
+  amount: number
+  cycle: string
+  renewal_date: string
+  reminder_days_before: number
+  auto_renew: boolean
+  notes: string
+  active: boolean
+}
+
+export const fetchSubscriptions = () =>
+  api.get<Subscription[]>('/subscriptions/').then(res => res.data)
+export const createSubscription = (data: SubscriptionFormData) =>
+  api.post<Subscription>('/subscriptions/', data).then(res => res.data)
+export const updateSubscription = (id: number, data: Partial<SubscriptionFormData>) =>
+  api.patch<Subscription>(`/subscriptions/${id}/`, data).then(res => res.data)
+export const deleteSubscription = (id: number) =>
+  api.delete(`/subscriptions/${id}/`).then(res => res.data)
 
 
 export default api

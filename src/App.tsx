@@ -17,10 +17,11 @@ import TaxInvoices from '@/components/TaxInvoices'
 import BankStatement from '@/components/BankStatement'
 import EngineerPnl from '@/components/EngineerPnl'
 import InvoiceRegister from '@/components/InvoiceRegister'
+import Subscriptions from '@/components/Subscriptions'
 import UserManagement from '@/components/UserManagement'
 import Settings from '@/components/Settings'
 import Login from '@/components/Login'
-import { LayoutDashboard, Receipt, BarChart3, MapPin, FileText, Truck, ShoppingCart, ClipboardList, ReceiptText, Wallet, FileSignature, ScrollText, BadgeIndianRupee, Landmark, Cpu, Users, Settings as SettingsIcon, Loader2, Files } from 'lucide-react'
+import { LayoutDashboard, Receipt, BarChart3, MapPin, FileText, Truck, ShoppingCart, ClipboardList, ReceiptText, Wallet, FileSignature, ScrollText, BadgeIndianRupee, Landmark, Cpu, Users, Settings as SettingsIcon, Loader2, Files, CalendarClock } from 'lucide-react'
 import type { SectionKey } from '@/lib/api'
 
 type TabKey = SectionKey | 'admin' | 'settings'
@@ -68,8 +69,8 @@ function App() {
   // Sections this user may access. Admins implicitly get everything; if the
   // field is missing (older token), fall back to all three sections.
   const allowed: SectionKey[] = isAdmin
-    ? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice', 'idfc', 'bob', 'engpnl', 'sbinvoice']
-    : (user.allowed_sections ?? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice', 'idfc', 'bob', 'engpnl', 'sbinvoice'])
+    ? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice', 'idfc', 'bob', 'engpnl', 'sbinvoice', 'subscription']
+    : (user.allowed_sections ?? ['dashboard', 'expenses', 'pnl', 'region', 'invoice', 'challan', 'purchase', 'porder', 'receipt', 'pettycash', 'quote', 'bos', 'taxinvoice', 'idfc', 'bob', 'engpnl', 'sbinvoice', 'subscription'])
 
   // Build the visible tab list from the user's access.
   const tabs: { key: TabKey; label: string; icon: React.ReactNode }[] = [
@@ -90,6 +91,7 @@ function App() {
     ...(allowed.includes('bos') ? [{ key: 'bos' as TabKey, label: 'Bill of Supply', icon: <ScrollText className="w-5 h-5" /> }] : []),
     ...(allowed.includes('taxinvoice') ? [{ key: 'taxinvoice' as TabKey, label: 'Tax Invoice', icon: <BadgeIndianRupee className="w-5 h-5" /> }] : []),
     ...(allowed.includes('sbinvoice') ? [{ key: 'sbinvoice' as TabKey, label: 'Invoice Register', icon: <Files className="w-5 h-5" /> }] : []),
+    ...(allowed.includes('subscription') ? [{ key: 'subscription' as TabKey, label: 'Subscriptions', icon: <CalendarClock className="w-5 h-5" /> }] : []),
     ...(isAdmin ? [{ key: 'admin' as TabKey, label: 'Users', icon: <Users className="w-5 h-5" /> }] : []),
     ...(isAdmin ? [{ key: 'settings' as TabKey, label: 'Settings', icon: <SettingsIcon className="w-5 h-5" /> }] : []),
   ]
@@ -126,6 +128,7 @@ function App() {
       {currentTab === 'bob' && allowed.includes('bob') && <BankStatement bank="bob" title="BOB Statement" subtitle="Upload the Bank of Baroda Excel export — rows become entries" />}
       {currentTab === 'engpnl' && allowed.includes('engpnl') && <EngineerPnl />}
       {currentTab === 'sbinvoice' && allowed.includes('sbinvoice') && <InvoiceRegister />}
+      {currentTab === 'subscription' && allowed.includes('subscription') && <Subscriptions />}
       {currentTab === 'admin' && isAdmin && <UserManagement />}
       {currentTab === 'settings' && isAdmin && <Settings />}
     </Layout>
