@@ -237,6 +237,7 @@ export interface PnlRow {
   category: string
   monthly: Record<string, string> // month key 'YYYY-MM' -> amount
   total: string
+  group?: string // parent group (expense rows only) for collapsible grouping
 }
 
 export interface ProfitLossData {
@@ -247,6 +248,7 @@ export interface ProfitLossData {
   branches: string[]
   income: PnlRow[]
   expense: PnlRow[]
+  expense_group_order?: string[]
   income_by_month: Record<string, string>
   expense_by_month: Record<string, string>
   net_by_month: Record<string, string>

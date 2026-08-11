@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { BarChart3, TrendingUp, TrendingDown, Building2, Calendar, X, Loader2, Receipt, Wallet } from 'lucide-react'
+import { useEffect, useMemo, useState, Fragment } from 'react'
+import { BarChart3, TrendingUp, TrendingDown, Building2, Calendar, X, Loader2, Receipt, Wallet, ChevronRight, ChevronDown } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { CURRENCY_SYMBOL } from '@/lib/brand'
@@ -60,9 +60,20 @@ async function fetchAllEntries(params: { branch?: string; date_from: string; dat
   return all
 }
 
+// A collapsible expense group: its categories + per-month subtotals.
+interface ExpenseGroup {
+  group: string
+  rows: PnlRow[]
+  monthly: Record<string, number>
+  total: number
+}
+
 export default function ProfitLoss() {
   const { pnl, loadingPnl, pnlFilters, setPnlFilters, loadProfitLoss, paymentModeBalances } = useExpenseStore()
   const [drill, setDrill] = useState<Drill | null>(null)
+  // Which expense groups are collapsed (default: all collapsed → dropdown feel).
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [collapseInit, setCollapseInit] = useState(false)
 
   // Load on mount and whenever the P&L filters (fy / branch / payment_mode) change.
   useEffect(() => {
@@ -71,6 +82,41 @@ export default function ProfitLoss() {
   }, [pnlFilters.fy, pnlFilters.branch, pnlFilters.payment_mode])
 
   const months = pnl?.months ?? []
+
+  // Group the expense rows by their parent group, ordered by the backend's order.
+  const expenseGroups = useMemo<ExpenseGroup[]>(() => {
+    const order = pnl?.expense_group_order ?? []
+    const map = new Map<string, PnlRow[]>()
+    for (const r of pnl?.expense ?? []) {
+      const g = r.group || 'Others'
+      if (!map.has(g)) map.set(g, [])
+      map.get(g)!.push(r)
+    }
+    const keys = Array.from(map.keys()).sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b)
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
+    })
+    return keys.map((g) => {
+      const rows = map.get(g)!
+      const monthly: Record<string, number> = {}
+      for (const mk of months) monthly[mk] = rows.reduce((s, r) => s + parseFloat(r.monthly[mk] || '0'), 0)
+      const total = rows.reduce((s, r) => s + parseFloat(r.total || '0'), 0)
+      return { group: g, rows, monthly, total }
+    })
+  }, [pnl, months])
+
+  // Collapse all groups by default the first time data arrives.
+  useEffect(() => {
+    if (!collapseInit && expenseGroups.length > 0) {
+      setCollapsed(new Set(expenseGroups.map((g) => g.group)))
+      setCollapseInit(true)
+    }
+  }, [expenseGroups, collapseInit])
+  const toggleGroup = (g: string) => setCollapsed((prev) => {
+    const next = new Set(prev)
+    next.has(g) ? next.delete(g) : next.add(g)
+    return next
+  })
 
   const totalIncome = useMemo(() => parseFloat(pnl?.total_income ?? '0'), [pnl])
   const totalExpense = useMemo(() => parseFloat(pnl?.total_expense ?? '0'), [pnl])
@@ -210,10 +256,15 @@ export default function ProfitLoss() {
                   tone="income"
                 />
 
-                {/* EXPENSE */}
+                {/* EXPENSE — grouped, collapsible */}
                 <SectionHeader label="Expense" months={months.length} tone="expense" />
-                {pnl!.expense.map((row) => (
-                  <DataRow key={`exp-${row.category}`} row={row} months={months} tone="expense" branch={pnlFilters.branch} onDrill={setDrill} />
+                {expenseGroups.map((grp) => (
+                  <Fragment key={`grp-${grp.group}`}>
+                    <GroupRow grp={grp} months={months} collapsed={collapsed.has(grp.group)} onToggle={() => toggleGroup(grp.group)} />
+                    {!collapsed.has(grp.group) && grp.rows.map((row) => (
+                      <DataRow key={`exp-${row.category}`} row={row} months={months} tone="expense" branch={pnlFilters.branch} onDrill={setDrill} indent />
+                    ))}
+                  </Fragment>
                 ))}
                 <TotalsRow
                   label="Total Expense"
@@ -296,20 +347,51 @@ function SectionHeader({ label, months, tone }: { label: string; months: number;
   )
 }
 
-function DataRow({ row, months, tone, branch, onDrill }: {
+// A collapsible expense-group header row: group name + per-month subtotals + total.
+// Clicking toggles the category rows under it.
+function GroupRow({ grp, months, collapsed, onToggle }: {
+  grp: ExpenseGroup
+  months: string[]
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  const cellFor = (n: number) => (!n
+    ? <span className="text-surface-300 dark:text-surface-600">–</span>
+    : <span className="text-red-600 dark:text-red-400">{fullAmount(n)}</span>)
+  return (
+    <tr onClick={onToggle} className="border-b border-surface-100 dark:border-surface-700/50 bg-surface-50/60 dark:bg-surface-900/30 hover:bg-surface-100/70 dark:hover:bg-surface-800/50 cursor-pointer transition-colors">
+      <td className="sticky left-0 z-10 bg-surface-50/60 dark:bg-surface-900/30 p-3 font-semibold text-surface-800 dark:text-surface-100 whitespace-nowrap">
+        <span className="inline-flex items-center gap-1.5">
+          {collapsed ? <ChevronRight className="w-4 h-4 text-surface-400" /> : <ChevronDown className="w-4 h-4 text-surface-400" />}
+          {grp.group}
+          <span className="ml-1 text-xs font-normal text-surface-400">({grp.rows.length})</span>
+        </span>
+      </td>
+      {months.map((mk) => (
+        <td key={mk} className="p-3 text-right tabular-nums whitespace-nowrap font-medium">{cellFor(grp.monthly[mk] || 0)}</td>
+      ))}
+      <td className="sticky right-0 z-10 bg-surface-50/60 dark:bg-surface-900/30 p-3 text-right font-bold tabular-nums whitespace-nowrap border-l border-surface-100 dark:border-surface-700 text-red-600 dark:text-red-400">
+        {fullAmount(grp.total)}
+      </td>
+    </tr>
+  )
+}
+
+function DataRow({ row, months, tone, branch, onDrill, indent }: {
   row: PnlRow
   months: string[]
   tone: 'income' | 'expense'
   branch?: string
   onDrill: (d: Drill) => void
+  indent?: boolean
 }) {
   const amountColor = tone === 'income'
     ? 'text-emerald-600 dark:text-emerald-400'
     : 'text-red-600 dark:text-red-400'
   return (
     <tr className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/60 dark:hover:bg-surface-700/30 transition-colors">
-      <td className="sticky left-0 z-10 bg-white dark:bg-surface-800 hover:bg-surface-50/60 dark:hover:bg-surface-700/30 p-3 font-medium text-surface-700 dark:text-surface-200 whitespace-nowrap">
-        {row.category}
+      <td className={`sticky left-0 z-10 bg-white dark:bg-surface-800 hover:bg-surface-50/60 dark:hover:bg-surface-700/30 p-3 font-medium text-surface-600 dark:text-surface-300 whitespace-nowrap ${indent ? 'pl-8' : ''}`}>
+        {indent && <span className="text-surface-300 dark:text-surface-600 mr-1">·</span>}{row.category}
       </td>
       {months.map((mk) => {
         const raw = row.monthly[mk] ?? '0'
