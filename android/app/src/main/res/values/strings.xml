@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Expense Tracking</string>
+    <string name="title_activity_main">Expense Tracking</string>
+    <string name="package_name">com.bazhilgroups.expensetrack</string>
+    <string name="custom_url_scheme">com.bazhilgroups.expensetrack</string>
+</resources>
