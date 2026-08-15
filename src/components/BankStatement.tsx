@@ -377,19 +377,19 @@ function MatchedExpenseModal({ match, onClose }: { match: MatchedExpense; onClos
   ]
   return (
     <div className="fixed inset-0 z-[95] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-surface-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700">
+      <div className="bg-white dark:bg-surface-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-fade-in max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700 shrink-0">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-500" />
             <h3 className="font-bold text-surface-900 dark:text-white">Matched Expenses Entry</h3>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"><X className="w-5 h-5 text-surface-400" /></button>
         </div>
-        <div className="px-5 py-4 flex items-center justify-between bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700">
+        <div className="px-5 py-4 flex items-center justify-between bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700 shrink-0">
           <span className="text-sm font-medium text-surface-500 dark:text-surface-400">{isCredit ? 'Credit (Deposit)' : 'Debit (Withdrawal)'}</span>
           <span className={`text-xl font-bold ${amtColor}`}>₹{inr(match.amount)}</span>
         </div>
-        <div className="p-5 space-y-3">
+        <div className="p-5 space-y-3 flex-1 overflow-y-auto">
           {rows.map((r) => (
             <div key={r.label} className="flex items-start gap-3">
               <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-surface-100 dark:bg-surface-700 text-surface-500 dark:text-surface-300 shrink-0">{r.icon}</span>
@@ -400,7 +400,7 @@ function MatchedExpenseModal({ match, onClose }: { match: MatchedExpense; onClos
             </div>
           ))}
         </div>
-        <div className="px-5 pb-5">
+        <div className="px-5 pb-5 shrink-0">
           <p className="text-xs text-surface-400 dark:text-surface-500">Expenses entry #{match.id} · matched by date + amount + mode.</p>
         </div>
       </div>
@@ -446,12 +446,12 @@ function EditEntryModal({ entry, onClose, onSave }: {
 
   return (
     <div className="fixed inset-0 z-[95] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-surface-800 rounded-2xl p-5 w-full max-w-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white dark:bg-surface-800 rounded-2xl p-5 w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4 shrink-0">
           <h3 className="font-bold text-surface-900 dark:text-white">Edit entry</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"><X className="w-5 h-5 text-surface-400" /></button>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 flex-1 overflow-y-auto">
           <div><label className={labelCls}>Tran Date</label><input type="date" className={inputCls} value={txnDate} onChange={(e) => setTxnDate(e.target.value)} /></div>
           <div><label className={labelCls}>Value Date</label><input type="date" className={inputCls} value={valueDate} onChange={(e) => setValueDate(e.target.value)} /></div>
           <div className="col-span-2"><label className={labelCls}>Narration</label><textarea rows={2} className={inputCls} value={narration} onChange={(e) => setNarration(e.target.value)} /></div>
@@ -465,7 +465,7 @@ function EditEntryModal({ entry, onClose, onSave }: {
           <div><label className={labelCls}>Deposit (Credit)</label><input className={inputCls} value={credit} onChange={(e) => setCredit(e.target.value)} /></div>
           <div className="col-span-2"><label className={labelCls}>Balance (INR)</label><input className={inputCls} value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="blank = none" /></div>
         </div>
-        <div className="flex justify-end gap-2 mt-5">
+        <div className="flex justify-end gap-2 mt-5 shrink-0">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700">Cancel</button>
           <button onClick={submit} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-60">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />} Save

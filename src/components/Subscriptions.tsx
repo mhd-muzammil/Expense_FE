@@ -203,12 +203,12 @@ function SubscriptionForm({ state, onClose, onSaved, onToast }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-lg bg-white dark:bg-surface-800 rounded-2xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 dark:border-surface-700">
+      <div className="relative w-full max-w-lg bg-white dark:bg-surface-800 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-surface-100 dark:border-surface-700">
           <h3 className="text-lg font-semibold text-surface-900 dark:text-white">{state.id ? 'Edit Subscription' : 'Add Subscription'}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"><X className="w-5 h-5 text-surface-500" /></button>
         </div>
-        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2"><label className={label}>Name *</label><input className={input} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Sleek Bill Premium" /></div>
           <div><label className={label}>Vendor</label><input className={input} value={form.vendor} onChange={(e) => set('vendor', e.target.value)} placeholder="e.g. Sleek Bill" /></div>
           <div><label className={label}>Amount (₹)</label><input type="number" step="0.01" className={input} value={form.amount || ''} onChange={(e) => set('amount', e.target.value ? parseFloat(e.target.value) : 0)} /></div>
@@ -223,7 +223,7 @@ function SubscriptionForm({ state, onClose, onSaved, onToast }: {
           </div>
           <div className="col-span-2"><label className={label}>Notes</label><textarea rows={2} className={input} value={form.notes} onChange={(e) => set('notes', e.target.value)} /></div>
         </div>
-        <div className="flex justify-end gap-2 px-6 pb-5">
+        <div className="shrink-0 flex justify-end gap-2 px-6 pb-5">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700">Cancel</button>
           <button onClick={submit} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-60">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />} {state.id ? 'Update' : 'Add'}

@@ -181,7 +181,7 @@ function PreviewModal({ orderId, onClose }: { orderId: number; onClose: () => vo
           <Printer className="w-4 h-4" /> Print / Save PDF
         </button>
       </div>
-      <div className="flex justify-center py-6">
+      <div className="flex justify-start sm:justify-center py-6">
         {order ? (
           <div className="print-area bg-white shadow-2xl">
             <PurchaseOrderDocument order={order} />

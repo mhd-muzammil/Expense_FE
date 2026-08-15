@@ -296,12 +296,12 @@ function EngineerForm({ state, onClose, onSaved, onToast }: {
 
   return (
     <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-surface-800 shadow-2xl border border-surface-100 dark:border-surface-700" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700">
+      <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-surface-800 shadow-2xl border border-surface-100 dark:border-surface-700" onClick={(e) => e.stopPropagation()}>
+        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700">
           <h3 className="font-bold text-surface-900 dark:text-white">{state.id ? 'Edit engineer' : 'Add engineer'}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"><X className="w-4 h-4 text-surface-500" /></button>
         </div>
-        <div className="p-5 grid grid-cols-2 gap-4">
+        <div className="flex-1 overflow-y-auto p-5 grid grid-cols-2 gap-4">
           <div className="col-span-2"><label className={labelCls}>Engineer name * <span className="text-surface-400">(exact OpenCall name)</span></label><input className={inputCls} value={form.engineer_name} onChange={(e) => set('engineer_name', e.target.value)} /></div>
           <div className="col-span-2"><label className={labelCls}>Email (optional)</label><input className={inputCls} value={form.email} onChange={(e) => set('email', e.target.value)} /></div>
           <div><label className={labelCls}>Per call rate (₹)</label><input className={inputCls} value={form.per_call_rate} onChange={(e) => set('per_call_rate', num(e.target.value))} /></div>
@@ -311,7 +311,7 @@ function EngineerForm({ state, onClose, onSaved, onToast }: {
           <div><label className={labelCls}>Total working days</label><input className={inputCls} value={form.total_working_days} onChange={(e) => set('total_working_days', num(e.target.value))} /></div>
           <div><label className={labelCls}>Actual working days</label><input className={inputCls} value={form.actual_working_days} onChange={(e) => set('actual_working_days', num(e.target.value))} /></div>
         </div>
-        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-surface-100 dark:border-surface-700">
+        <div className="shrink-0 flex items-center justify-end gap-2 px-5 py-4 border-t border-surface-100 dark:border-surface-700">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700">Cancel</button>
           <button onClick={save} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-60">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Save

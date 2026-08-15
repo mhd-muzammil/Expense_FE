@@ -202,7 +202,7 @@ function PreviewModal({ invoiceId, onClose }: { invoiceId: number; onClose: () =
         </div>
       </div>
 
-      <div className="flex justify-center py-6">
+      <div className="flex justify-start sm:justify-center py-6">
         {invoice ? (
           <div className="print-area bg-white shadow-2xl">
             <InvoiceDocument invoice={invoice} />

@@ -123,9 +123,9 @@ export default function ExpenseForm({ expense, prefill, initialType, onClose }: 
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg bg-white dark:bg-surface-800 rounded-2xl shadow-2xl animate-fade-in overflow-hidden">
+      <div className="relative w-full max-w-lg bg-white dark:bg-surface-800 rounded-2xl shadow-2xl animate-fade-in overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 dark:border-surface-700">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100 dark:border-surface-700 shrink-0">
           <h2 className="text-lg font-semibold text-surface-900 dark:text-white">
             {expense ? 'Edit Expense' : 'Add New Expense'}
           </h2>
@@ -138,7 +138,8 @@ export default function ExpenseForm({ expense, prefill, initialType, onClose }: 
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 pt-6 space-y-4 min-h-0">
           {/* Date + Category Row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -294,9 +295,10 @@ export default function ExpenseForm({ expense, prefill, initialType, onClose }: 
               {errors.amount}
             </p>
           )}
+          </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-2">
+          <div className="flex gap-3 shrink-0 px-6 pb-6 pt-6">
             <button
               type="button"
               onClick={onClose}
