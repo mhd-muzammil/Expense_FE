@@ -11,6 +11,18 @@ const config: CapacitorConfig = {
     url: 'https://etracker.systimus.in',
     cleartext: false,
   },
+  plugins: {
+    // Branded launch screen: Renderways logo + name shown while the web loads.
+    SplashScreen: {
+      launchShowDuration: 2200,
+      launchAutoHide: true,
+      backgroundColor: '#ffffff',
+      androidScaleType: 'CENTER_CROP',
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: false,
+    },
+  },
 };
 
 export default config;
