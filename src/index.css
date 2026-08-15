@@ -216,3 +216,62 @@ body {
     margin: 0 !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Animated in-app launch splash (Renderways) — see components/AppSplash.tsx.
+   Only mounted inside the native app; never shown on desktop/browser.
+   --------------------------------------------------------------------------- */
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+}
+.app-splash--leaving {
+  animation: app-splash-out 0.45s ease forwards;
+}
+.app-splash__logo {
+  width: 42vw;
+  max-width: 210px;
+  height: auto;
+  opacity: 0;
+  transform: scale(0.6);
+  animation: app-splash-logo 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.app-splash__title {
+  margin-top: 30px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-weight: 800;
+  font-size: clamp(20px, 6.2vw, 30px);
+  letter-spacing: -0.01em;
+  color: #2e1a63;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: app-splash-text 0.6s ease-out 0.55s forwards;
+}
+.app-splash__sub {
+  margin-top: 8px;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-weight: 500;
+  font-size: clamp(13px, 4.2vw, 18px);
+  color: #ec2a8a;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: app-splash-text 0.6s ease-out 0.8s forwards;
+}
+@keyframes app-splash-logo {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes app-splash-text {
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes app-splash-out {
+  to { opacity: 0; visibility: hidden; }
+}

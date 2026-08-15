@@ -12,9 +12,10 @@ const config: CapacitorConfig = {
     cleartext: false,
   },
   plugins: {
-    // Branded launch screen: Renderways logo + name shown while the web loads.
+    // Brief static splash that hands off to the animated in-app splash
+    // (components/AppSplash.tsx) once the web app boots.
     SplashScreen: {
-      launchShowDuration: 2200,
+      launchShowDuration: 1000,
       launchAutoHide: true,
       backgroundColor: '#ffffff',
       androidScaleType: 'CENTER_CROP',
