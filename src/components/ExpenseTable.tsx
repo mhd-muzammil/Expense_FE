@@ -153,7 +153,7 @@ export default function ExpenseTable() {
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Summary tiles — Entries / Total Credit / Debit / Balance (reflect the active filters) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4 shadow-sm">
           <div className="flex items-center gap-1.5 text-xs font-medium text-surface-500 dark:text-surface-400"><FileSpreadsheet className="w-3.5 h-3.5" /> Entries</div>
           <div className="text-2xl font-bold text-surface-900 dark:text-white">{totalCount.toLocaleString('en-IN')}</div>

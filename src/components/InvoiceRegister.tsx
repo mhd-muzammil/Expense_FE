@@ -192,7 +192,7 @@ export default function InvoiceRegister() {
       </div>
 
       {/* Summary tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
         <Tile icon={<Receipt className="w-4 h-4" />} label="Invoices" value={summary.count.toLocaleString('en-IN')} tone="primary" />
         <Tile icon={<FileCheck2 className="w-4 h-4" />} label="Tax Invoices" value={summary.tax_invoice.toLocaleString('en-IN')} tone="primary" />
         <Tile icon={<FileText className="w-4 h-4" />} label="Bills of Supply" value={summary.bill_of_supply.toLocaleString('en-IN')} tone="violet" />

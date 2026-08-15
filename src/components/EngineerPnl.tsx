@@ -148,7 +148,7 @@ export default function EngineerPnl() {
       )}
 
       {/* Summary tiles */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <Tile label="Engineers" value={board ? String(board.rows.length) : '—'} />
         <Tile label="Closed Calls (P/M)" value={t ? inr(t.closed_calls) : '—'} accent="text-primary-600 dark:text-primary-400" />
         <Tile label="Total Engg Earning" value={t ? `₹${inr(t.revenue)}` : '—'} accent="text-emerald-600 dark:text-emerald-400" />
