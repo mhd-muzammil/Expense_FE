@@ -208,7 +208,7 @@ function SubscriptionForm({ state, onClose, onSaved, onToast }: {
           <h3 className="text-lg font-semibold text-surface-900 dark:text-white">{state.id ? 'Edit Subscription' : 'Add Subscription'}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700"><X className="w-5 h-5 text-surface-500" /></button>
         </div>
-        <div className="p-6 grid grid-cols-2 gap-4">
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2"><label className={label}>Name *</label><input className={input} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Sleek Bill Premium" /></div>
           <div><label className={label}>Vendor</label><input className={input} value={form.vendor} onChange={(e) => set('vendor', e.target.value)} placeholder="e.g. Sleek Bill" /></div>
           <div><label className={label}>Amount (₹)</label><input type="number" step="0.01" className={input} value={form.amount || ''} onChange={(e) => set('amount', e.target.value ? parseFloat(e.target.value) : 0)} /></div>

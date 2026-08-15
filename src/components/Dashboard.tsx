@@ -1480,7 +1480,7 @@ export default function Dashboard() {
           </datalist>
         </div>
 
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700/50">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700/50 max-w-full overflow-x-auto custom-scrollbar">
           {[
             { id: 'all', label: 'All Time' },
             { id: 'today', label: 'Today' },

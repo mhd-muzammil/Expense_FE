@@ -246,8 +246,8 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
         </div>
       )}
 
-      {/* Toast Container */}
-      <div className="fixed bottom-6 right-6 z-[60] flex flex-col gap-3 max-w-sm">
+      {/* Toast Container — full-width on phones, right-anchored card on sm+ */}
+      <div className="fixed z-[60] flex flex-col gap-3 left-4 right-4 bottom-4 sm:left-auto sm:right-6 sm:bottom-6 sm:max-w-sm">
         {toasts.map((toast) => (
           <div
             key={toast.id}
