@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { StatusBar, Style } from '@capacitor/status-bar'
 import useExpenseStore from '@/store/useExpenseStore'
 import { APP_NAME, APP_SUBTITLE, CURRENCY_SYMBOL } from '@/lib/brand'
 import { Moon, Sun, X, LogOut, Menu, PanelLeftClose, PanelLeftOpen, ChevronDown } from 'lucide-react'
@@ -111,10 +112,21 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
 
   useEffect(() => {
-    if (theme === 'dark') {
+    const isDark = theme === 'dark'
+    if (isDark) {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
+    }
+
+    // Match the native status bar to the app theme so its background blends
+    // with the header instead of showing a mismatched grey band (native app
+    // only; on web/desktop and on an APK without the plugin these no-op).
+    const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+    if (cap?.isNativePlatform?.()) {
+      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {})
+      StatusBar.setBackgroundColor({ color: isDark ? '#0f172a' : '#ffffff' }).catch(() => {})
+      StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => {})
     }
   }, [theme])
 
