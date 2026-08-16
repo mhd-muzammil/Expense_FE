@@ -75,14 +75,6 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-/* Respect the phone status-bar / notch when the webview runs edge-to-edge. */
-@supports (padding: env(safe-area-inset-top)) {
-  body {
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-}
-
 /* Stop focus-zoom on inputs on small screens (browsers zoom when < 16px). */
 @media (max-width: 640px) {
   input,
