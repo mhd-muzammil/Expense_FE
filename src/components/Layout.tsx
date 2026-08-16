@@ -126,10 +126,11 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
     // visible: dark theme -> light icons, light theme -> dark icons.
     const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
     if (!cap?.isNativePlatform?.()) return
-    const applyStyle = () =>
-      StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => {})
-    // Chain so enabling overlay doesn't race/reset the style, and re-apply once
-    // shortly after in case an early call was dropped during launch.
+    // Android 15 won't reliably tint the OS status-bar icons dark, so we keep
+    // them LIGHT (white) and instead paint a solid dark band behind them (see
+    // the status-bar backdrop element below) — that guarantees the clock/icons
+    // are visible in both themes. Overlay lets our content draw behind the bar.
+    const applyStyle = () => StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
     StatusBar.setOverlaysWebView({ overlay: true }).then(applyStyle).catch(() => {})
     const retry = setTimeout(applyStyle, 350)
     return () => clearTimeout(retry)
@@ -178,6 +179,15 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
 
   return (
     <div className="min-h-screen flex bg-surface-50 dark:bg-surface-950 transition-colors duration-300">
+      {/* Solid dark backdrop behind the OS status bar so the (white) clock and
+          icons stay visible in BOTH themes — Android 15 won't reliably tint
+          them dark on a light bar. Sits above the header and drawer; invisible
+          on devices/desktops with no status-bar inset. */}
+      <div
+        className="md:hidden fixed top-0 inset-x-0 z-[55] pointer-events-none bg-surface-900"
+        style={{ height: 'env(safe-area-inset-top)' }}
+      />
+
       {/* Desktop Sidebar */}
       <aside
         className={`hidden md:flex md:flex-col md:shrink-0 h-screen sticky top-0 transition-[width] duration-200
