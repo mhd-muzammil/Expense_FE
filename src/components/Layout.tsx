@@ -124,8 +124,11 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
     // only; on web/desktop and on an APK without the plugin these no-op).
     const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
     if (cap?.isNativePlatform?.()) {
-      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {})
-      StatusBar.setBackgroundColor({ color: isDark ? '#0f172a' : '#ffffff' }).catch(() => {})
+      // Draw content behind the transparent status bar and set ONLY the icon
+      // contrast. Android 15 ignores a status-bar background colour, so the
+      // header's own background (with safe-area top padding) provides the
+      // colour that shows behind the clock/icons.
+      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})
       StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => {})
     }
   }, [theme])
@@ -211,9 +214,14 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
 
       {/* Main column */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {/* Mobile top bar */}
-        <header className="md:hidden sticky top-0 z-40 flex items-center justify-between h-14 px-4
-          border-b border-surface-200 dark:border-surface-700 bg-white/80 dark:bg-surface-900/80 backdrop-blur-xl">
+        {/* Mobile top bar — extends into the status-bar area (safe-area top
+            padding) so the bar's colour fills behind the clock and content
+            still sits below it. */}
+        <header
+          className="md:hidden sticky top-0 z-40 flex items-center justify-between px-4
+          border-b border-surface-200 dark:border-surface-700 bg-white/90 dark:bg-surface-900/90 backdrop-blur-xl"
+          style={{ height: 'calc(3.5rem + env(safe-area-inset-top))', paddingTop: 'env(safe-area-inset-top)' }}
+        >
           <button
             onClick={() => setMobileNav(true)}
             className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-surface-100 dark:hover:bg-surface-800"
@@ -228,7 +236,10 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
           </div>
         </header>
 
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+        <main
+          className="flex-1 px-4 sm:px-6 lg:px-8 pt-6"
+          style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+        >
           {children}
         </main>
       </div>
