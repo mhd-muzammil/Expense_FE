@@ -119,18 +119,20 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
       document.documentElement.classList.remove('dark')
     }
 
-    // Match the native status bar to the app theme so its background blends
-    // with the header instead of showing a mismatched grey band (native app
-    // only; on web/desktop and on an APK without the plugin these no-op).
+    // Match the native status bar to the app theme (native app only; no-ops on
+    // web/desktop and on an APK without the plugin). Android 15 ignores a
+    // status-bar background colour, so the header's own background provides the
+    // colour; here we only set the ICON contrast so the clock/icons stay
+    // visible: dark theme -> light icons, light theme -> dark icons.
     const cap = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
-    if (cap?.isNativePlatform?.()) {
-      // Draw content behind the transparent status bar and set ONLY the icon
-      // contrast. Android 15 ignores a status-bar background colour, so the
-      // header's own background (with safe-area top padding) provides the
-      // colour that shows behind the clock/icons.
-      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})
+    if (!cap?.isNativePlatform?.()) return
+    const applyStyle = () =>
       StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light }).catch(() => {})
-    }
+    // Chain so enabling overlay doesn't race/reset the style, and re-apply once
+    // shortly after in case an early call was dropped during launch.
+    StatusBar.setOverlaysWebView({ overlay: true }).then(applyStyle).catch(() => {})
+    const retry = setTimeout(applyStyle, 350)
+    return () => clearTimeout(retry)
   }, [theme])
 
   const toggleCollapsed = () => {
