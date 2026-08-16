@@ -250,6 +250,7 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMobileNav(false)} />
           <aside
             className="absolute left-0 top-0 h-full w-64 bg-white dark:bg-surface-900 shadow-2xl flex flex-col animate-in slide-in-from-left duration-200"
+            style={{ paddingTop: 'env(safe-area-inset-top)' }}
             onClick={() => setMobileNav(false)}
           >
             <div className="flex items-center justify-between h-16 px-5 border-b border-surface-200 dark:border-surface-700">
@@ -262,7 +263,10 @@ export default function Layout({ children, navItems = [], onLogout }: LayoutProp
                 <X className="w-5 h-5 text-surface-500" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar">
+            <div
+              className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar"
+              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+            >
               <Nav showLabels />
             </div>
           </aside>
