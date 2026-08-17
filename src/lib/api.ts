@@ -52,7 +52,7 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
-export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice' | 'subscription'
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice' | 'subscription' | 'insights'
 
 export interface AuthUser {
   username: string
@@ -264,6 +264,69 @@ export const fetchProfitLoss = (params: { fy?: number | string; branch?: string;
   if (params.payment_mode) query.set('payment_mode', params.payment_mode)
   const qs = query.toString()
   return api.get<ProfitLossData>(`/profit-loss/${qs ? '?' + qs : ''}`).then(res => res.data)
+}
+
+// ---------------------------------------------------------------------------
+// Business Insights (AI-free analytics)
+// ---------------------------------------------------------------------------
+export interface InsightsMonthRow {
+  month: string
+  income: string
+  expense: string
+  net: string
+  is_profit: boolean
+  margin_pct: number | null
+  change_vs_prev: string | null
+  top_expense: string | null
+  top_expense_amount: string | null
+  has_data: boolean
+}
+
+export interface InsightsData {
+  window_months: string[]
+  window_label: string
+  date_from: string
+  date_to: string
+  branches: string[]
+  summary: {
+    total_income: string
+    total_expense: string
+    net_profit: string
+    is_profit: boolean
+    margin_pct: number | null
+    active_months: number
+    profit_months: number
+    loss_months: number
+    best_month: string | null
+    worst_month: string | null
+    latest_month: string
+    latest_income: string
+    latest_expense: string
+    latest_net: string
+  }
+  monthly_breakdown: InsightsMonthRow[]
+  monthly_trend: Array<{ month: string; income: string; expense: string; net: string }>
+  forecast: { month: string; income: string; expense: string; net: string }
+  branch_ranking: Array<{ branch: string; income: string; expense: string; net: string }>
+  top_expenses: Array<{ category: string; total: string; share: number; growth_pct: number | null; group: string }>
+  anomalies: Array<{ category: string; month: string; amount: string; avg: string; times: number }>
+  recommendations: Array<{ kind: 'good' | 'alert' | 'tip'; title: string; text: string }>
+}
+
+export interface InsightsFilters {
+  months?: number
+  date_from?: string
+  date_to?: string
+  branch?: string
+}
+
+export const fetchInsights = (filters: InsightsFilters = {}) => {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') params.set(key, String(value))
+  })
+  const qs = params.toString()
+  return api.get<InsightsData>(`/insights/${qs ? '?' + qs : ''}`).then(res => res.data)
 }
 
 /**
