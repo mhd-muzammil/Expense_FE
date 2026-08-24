@@ -626,7 +626,9 @@ function EngineerForm({ state, onClose, onSaved, onToast }: {
               </button>
             ) : (
               <p className="mt-1 text-[11px] text-surface-400">
-                Leave blank and this engineer keeps the manual salary below.
+                Left blank, this is filled in automatically from OpenCall (or from a Payroll employee whose name
+                matches exactly) on the next board load — clearing it does not detach the engineer. To change who
+                they are paid as, pick the right person above instead of emptying the field.
               </p>
             )}
           </div>
