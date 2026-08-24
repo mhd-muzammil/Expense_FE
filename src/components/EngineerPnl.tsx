@@ -73,7 +73,9 @@ export default function EngineerPnl() {
       const res = await fetchEngineerClosedCalls({ from: fromDate || currentDay(), to: toDate || currentDay() })
       const acc: Record<string, { locations: Set<string>; segments: Set<string> }> = {}
       for (const c of res.calls) {
-        const key = (c.engineer || '').trim().toLowerCase()
+        // Canonical name first: OpenCall aliases some engineers, and keying on the
+        // raw report text leaves those rows unable to find their own board row.
+        const key = (c.engineer_name || c.engineer || '').trim().toLowerCase()
         if (!key) continue
         const bucket = acc[key] || (acc[key] = { locations: new Set(), segments: new Set() })
         const loc = (c.work_location_name || c.work_location || '').trim()

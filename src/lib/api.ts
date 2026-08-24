@@ -1363,6 +1363,11 @@ export interface EngineerClosedCall {
   work_location_name: string
   wo_otc_code: string
   region_code: string
+  /**
+   * The engineer's canonical name — what the board calls them. `engineer` is the raw
+   * report text, which differs for an aliased name, so group on this one.
+   */
+  engineer_name: string
 }
 
 export interface EngineerClosedCalls {
