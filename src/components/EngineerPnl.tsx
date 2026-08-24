@@ -363,7 +363,8 @@ function ClosedCallsModal({ engineer, expected, from, to, onClose }: {
               <thead className="sticky top-0 z-10">
                 <tr className="bg-surface-50 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700 text-left">
                   <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Date</th>
-                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Ticket</th>
+                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Ticket ID</th>
+                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Case ID</th>
                   <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Segment</th>
                   <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Product Name</th>
                   <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Work Location</th>
@@ -374,13 +375,16 @@ function ClosedCallsModal({ engineer, expected, from, to, onClose }: {
                 {calls.map((c, i) => (
                   <tr key={`${c.ticket_id}-${c.date}-${i}`} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/60 dark:hover:bg-surface-700/30">
                     <td className="p-3 whitespace-nowrap text-surface-600 dark:text-surface-300">{c.date}</td>
-                    <td className="p-3 whitespace-nowrap font-medium text-surface-800 dark:text-surface-100">
-                      {c.ticket_id || '—'}
-                      {c.case_id && <span className="block text-[11px] text-surface-400">{c.case_id}</span>}
-                    </td>
+                    <td className="p-3 whitespace-nowrap font-medium text-surface-800 dark:text-surface-100">{c.ticket_id || '—'}</td>
+                    <td className="p-3 whitespace-nowrap text-surface-700 dark:text-surface-200">{c.case_id || '—'}</td>
                     <td className="p-3 whitespace-nowrap text-surface-700 dark:text-surface-200">{c.segment || '—'}</td>
                     <td className="p-3 text-surface-700 dark:text-surface-200">{c.product_name || '—'}</td>
-                    <td className="p-3 whitespace-nowrap text-surface-700 dark:text-surface-200">{c.work_location || '—'}</td>
+                    <td className="p-3 whitespace-nowrap text-surface-700 dark:text-surface-200">
+                      {c.work_location_name || c.work_location || '—'}
+                      {c.work_location_name && c.work_location && c.work_location_name !== c.work_location && (
+                        <span className="block text-[11px] text-surface-400">{c.work_location}</span>
+                      )}
+                    </td>
                     <td className="p-3 whitespace-nowrap font-mono text-xs text-surface-700 dark:text-surface-200">{c.wo_otc_code || '—'}</td>
                   </tr>
                 ))}

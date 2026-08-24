@@ -1348,7 +1348,10 @@ export interface EngineerClosedCall {
   case_id: string
   segment: string
   product_name: string
+  /** Raw ASP code, e.g. "ASPS01463". */
   work_location: string
+  /** That code resolved to its region name, e.g. "VELLORE". */
+  work_location_name: string
   wo_otc_code: string
   region_code: string
 }
