@@ -181,8 +181,9 @@ export default function EngineerPnl() {
           <strong>{board.payroll_unmatched.length} engineer{board.payroll_unmatched.length === 1 ? '' : 's'} not matched in Payroll.</strong>{' '}
           The salary shown for {board.payroll_unmatched.slice(0, 4).join(', ')}
           {board.payroll_unmatched.length > 4 ? ` and ${board.payroll_unmatched.length - 4} more` : ''}{' '}
-          is a manual/default figure, not their real pay — so their Profit / Loss is off too. Edit each one
-          (pencil) and set the same email they have in Payroll.
+          is a manual/default figure, not their real pay — so their Profit / Loss is off too. Salary is matched
+          by email only (a name can belong to two people), so edit each one (pencil) and enter the exact email
+          they have in Payroll.
         </div>
       )}
       {board && board.payroll_ok === false && (
@@ -272,7 +273,7 @@ export default function EngineerPnl() {
                         ) : board?.payroll_ok ? (
                           <span
                             className="ml-1 text-[9px] font-bold text-amber-500"
-                            title={`Not matched in Payroll — this is a manual/default figure, not ${r.engineer_name}'s real salary. Edit the engineer and set the email used in Payroll.`}
+                            title={`No Payroll email set (or it doesn't match) — this is a manual/default figure, not ${r.engineer_name}'s real salary. Edit the engineer and enter the exact email they have in Payroll.`}
                           >
                             ● SET
                           </span>
