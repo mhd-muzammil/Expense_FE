@@ -1315,6 +1315,11 @@ export interface EngineerPnlBoard {
   synced: number
   payroll_ok: boolean | null
   payroll_message: string
+  /**
+   * Engineers whose salary did NOT come from Payroll even though Payroll was
+   * reachable — the figure shown for them is a manual/default value.
+   */
+  payroll_unmatched: string[]
   show_all: boolean
   total_configured: number
   meta: Record<string, unknown>

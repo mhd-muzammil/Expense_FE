@@ -176,6 +176,15 @@ export default function EngineerPnl() {
           <strong>Closed calls not live yet.</strong> {board.message} Set <code>OPENCALL_USERNAME</code> / <code>OPENCALL_PASSWORD</code> (and <code>OPENCALL_API_URL</code>) on the backend to pull real-time closed calls. Everything else works; revenue shows once closed calls arrive.
         </div>
       )}
+      {board && board.payroll_ok === true && (board.payroll_unmatched?.length ?? 0) > 0 && (
+        <div className="mb-4 rounded-xl px-4 py-3 text-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-200">
+          <strong>{board.payroll_unmatched.length} engineer{board.payroll_unmatched.length === 1 ? '' : 's'} not matched in Payroll.</strong>{' '}
+          The salary shown for {board.payroll_unmatched.slice(0, 4).join(', ')}
+          {board.payroll_unmatched.length > 4 ? ` and ${board.payroll_unmatched.length - 4} more` : ''}{' '}
+          is a manual/default figure, not their real pay — so their Profit / Loss is off too. Edit each one
+          (pencil) and set the same email they have in Payroll.
+        </div>
+      )}
       {board && board.payroll_ok === false && (
         <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
           <strong>Salary not from Payroll yet.</strong> {board.payroll_message} Set <code>PAYROLL_USERNAME</code> / <code>PAYROLL_PASSWORD</code> / <code>PAYROLL_API_URL</code> (an admin account) to auto-fill each engineer's real salary. Until then the salary shown is the manual/default value.
@@ -258,7 +267,16 @@ export default function EngineerPnl() {
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">₹{inr(r.per_call_rate)}</td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400 whitespace-nowrap">
                         ₹{inr(r.engg_salary)}
-                        {r.salary_source === 'payroll' && <span className="ml-1 text-[9px] font-bold text-primary-500" title="Salary from Payroll">● PR</span>}
+                        {r.salary_source === 'payroll' ? (
+                          <span className="ml-1 text-[9px] font-bold text-primary-500" title="Salary from Payroll">● PR</span>
+                        ) : board?.payroll_ok ? (
+                          <span
+                            className="ml-1 text-[9px] font-bold text-amber-500"
+                            title={`Not matched in Payroll — this is a manual/default figure, not ${r.engineer_name}'s real salary. Edit the engineer and set the email used in Payroll.`}
+                          >
+                            ● SET
+                          </span>
+                        ) : null}
                       </td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">₹{inr(r.per_day)}</td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.total_working_days}</td>
