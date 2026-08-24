@@ -1340,6 +1340,38 @@ export const fetchEngineerPnlBoard = (params?: { month?: string; from?: string; 
   return api.get<EngineerPnlBoard>(`/engineer-pnl/board/${qs}`).then(res => res.data)
 }
 
+/** One closed call behind a board close count, with its OpenCall detail columns. */
+export interface EngineerClosedCall {
+  date: string
+  engineer: string
+  ticket_id: string
+  case_id: string
+  segment: string
+  product_name: string
+  work_location: string
+  wo_otc_code: string
+  region_code: string
+}
+
+export interface EngineerClosedCalls {
+  period: { from: string; to: string }
+  engineer: string
+  live_ok: boolean
+  message: string
+  count: number
+  calls: EngineerClosedCall[]
+  meta: { fromDate?: string; toDate?: string; reportDays?: number; totalClosed?: number }
+}
+
+/** The individual closed calls behind a board count — same window rules as the board. */
+export const fetchEngineerClosedCalls = (params: { from: string; to: string; engineer?: string }) => {
+  const p = new URLSearchParams()
+  p.set('from', params.from)
+  p.set('to', params.to)
+  if (params.engineer) p.set('engineer', params.engineer)
+  return api.get<EngineerClosedCalls>(`/engineer-pnl/closed-calls/?${p.toString()}`).then(res => res.data)
+}
+
 
 // Sleek Bill Invoice Register — imported invoices mirroring the Sleek Bill list
 export interface SleekBillInvoice {

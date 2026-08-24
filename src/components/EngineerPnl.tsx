@@ -4,8 +4,8 @@ import {
 } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import {
-  fetchEngineerPnlBoard, createEngineerPnl, updateEngineerPnl,
-  type EngineerPnlBoard, type EngineerPnlRow, type EngineerPnlFormData,
+  fetchEngineerPnlBoard, createEngineerPnl, updateEngineerPnl, fetchEngineerClosedCalls,
+  type EngineerPnlBoard, type EngineerPnlRow, type EngineerPnlFormData, type EngineerClosedCall,
 } from '@/lib/api'
 
 const inr = (v: string | number | null | undefined) => {
@@ -28,6 +28,8 @@ export default function EngineerPnl() {
   // Default view = today. Change the From/To pickers to look at any past date/range.
   const [fromDate, setFromDate] = useState(currentDay())
   const [toDate, setToDate] = useState(currentDay())
+  // Which engineer's closed calls to drill into (null = no drill-down open).
+  const [drill, setDrill] = useState<{ engineer: string; expected: number } | null>(null)
   const [showAll, setShowAll] = useState(false)
   const [cycleMonth, setCycleMonth] = useState('')
   const [editing, setEditing] = useState<null | { id?: number; data: EngineerPnlFormData }>(null)
@@ -201,7 +203,17 @@ export default function EngineerPnl() {
                       <td className="p-3 font-semibold text-surface-900 dark:text-white">{r.engineer_name}</td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.per_day_target}</td>
                       <td className="p-3 text-right text-surface-700 dark:text-surface-300">{r.actual_closed_pd}</td>
-                      <td className="p-3 text-right font-bold text-primary-600 dark:text-primary-400">{inr(r.total_calls_closed_pm)}</td>
+                      <td className="p-3 text-right font-bold text-primary-600 dark:text-primary-400">
+                        {r.total_calls_closed_pm > 0 ? (
+                          <button
+                            onClick={() => setDrill({ engineer: r.engineer_name, expected: r.total_calls_closed_pm })}
+                            className="underline decoration-dotted underline-offset-4 hover:text-primary-700 dark:hover:text-primary-300"
+                            title={`Show the ${r.total_calls_closed_pm} closed calls — Segment, Product, Work Location, WO OTC CODE`}
+                          >
+                            {inr(r.total_calls_closed_pm)}
+                          </button>
+                        ) : inr(r.total_calls_closed_pm)}
+                      </td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">₹{inr(r.per_call_rate)}</td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400 whitespace-nowrap">
                         ₹{inr(r.engg_salary)}
@@ -259,6 +271,124 @@ export default function EngineerPnl() {
       )}
 
       {editing && <EngineerForm state={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(true) }} onToast={addToast} />}
+      {drill && (
+        <ClosedCallsModal
+          engineer={drill.engineer}
+          expected={drill.expected}
+          from={fromDate || currentDay()}
+          to={toDate || currentDay()}
+          onClose={() => setDrill(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * The individual closed calls behind one engineer's count, with the OpenCall columns:
+ * Segment, Product Name, Work Location and WO OTC CODE. Read-only.
+ */
+function ClosedCallsModal({ engineer, expected, from, to, onClose }: {
+  engineer: string
+  expected: number
+  from: string
+  to: string
+  onClose: () => void
+}) {
+  const [calls, setCalls] = useState<EngineerClosedCall[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      setLoading(true)
+      try {
+        const res = await fetchEngineerClosedCalls({ from, to, engineer })
+        if (!alive) return
+        setCalls(res.calls)
+        setError(res.live_ok ? '' : (res.message || 'Closed-call details are not live yet.'))
+      } catch {
+        if (alive) setError('Could not load closed calls.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [engineer, from, to])
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-surface-800 shadow-2xl border border-surface-100 dark:border-surface-700"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700">
+          <div className="min-w-0">
+            <h3 className="font-bold text-surface-900 dark:text-white truncate">{engineer} — closed calls</h3>
+            <p className="text-xs text-surface-500 dark:text-surface-400">
+              {from} to {to}
+              {!loading && !error && (
+                <>
+                  {' · '}{calls.length} call{calls.length === 1 ? '' : 's'}
+                  {calls.length !== expected && (
+                    <span className="ml-1 text-amber-600 dark:text-amber-400">(board shows {expected})</span>
+                  )}
+                </>
+              )}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 shrink-0">
+            <X className="w-5 h-5 text-surface-400" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto custom-scrollbar">
+          {loading ? (
+            <div className="p-6 space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-10 rounded-lg" />)}
+            </div>
+          ) : error ? (
+            <div className="p-6 text-center">
+              <WifiOff className="w-10 h-10 mx-auto text-surface-300 dark:text-surface-600 mb-2" />
+              <p className="text-sm text-surface-600 dark:text-surface-300 font-medium">{error}</p>
+              <p className="text-xs text-surface-400 dark:text-surface-500 mt-1">
+                The count above still comes from OpenCall; only the per-call detail needs the newer endpoint.
+              </p>
+            </div>
+          ) : calls.length === 0 ? (
+            <div className="p-10 text-center text-surface-500 dark:text-surface-400">No closed calls in this period.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-surface-50 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700 text-left">
+                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Date</th>
+                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Ticket</th>
+                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Segment</th>
+                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Product Name</th>
+                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">Work Location</th>
+                  <th className="p-3 font-semibold text-surface-600 dark:text-surface-300 whitespace-nowrap">WO OTC CODE</th>
+                </tr>
+              </thead>
+              <tbody>
+                {calls.map((c, i) => (
+                  <tr key={`${c.ticket_id}-${c.date}-${i}`} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/60 dark:hover:bg-surface-700/30">
+                    <td className="p-3 whitespace-nowrap text-surface-600 dark:text-surface-300">{c.date}</td>
+                    <td className="p-3 whitespace-nowrap font-medium text-surface-800 dark:text-surface-100">
+                      {c.ticket_id || '—'}
+                      {c.case_id && <span className="block text-[11px] text-surface-400">{c.case_id}</span>}
+                    </td>
+                    <td className="p-3 whitespace-nowrap text-surface-700 dark:text-surface-200">{c.segment || '—'}</td>
+                    <td className="p-3 text-surface-700 dark:text-surface-200">{c.product_name || '—'}</td>
+                    <td className="p-3 whitespace-nowrap text-surface-700 dark:text-surface-200">{c.work_location || '—'}</td>
+                    <td className="p-3 whitespace-nowrap font-mono text-xs text-surface-700 dark:text-surface-200">{c.wo_otc_code || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
