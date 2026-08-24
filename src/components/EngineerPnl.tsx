@@ -193,8 +193,10 @@ export default function EngineerPnl() {
               {' '}were matched to Payroll by name, {' '}
             </>
           )}
-          so their real salary is now pulled in. Nothing was overwritten — an email already entered by hand is
-          always kept.
+          {board.payroll_ok === true
+            ? 'so their real salary is now pulled in.'
+            : 'so their real salary will be pulled in as soon as Payroll is reachable — it is not, right now.'}{' '}
+          Nothing was overwritten — an email already entered by hand is always kept.
         </div>
       )}
       {board && board.payroll_ok === true && (board.payroll_unmatched?.length ?? 0) > 0 && (
@@ -551,9 +553,12 @@ function EngineerForm({ state, onClose, onSaved, onToast }: {
   const pickedEmail = matched ? matched.email : ''
   // A same-name employee is a hint worth offering, never an automatic choice —
   // names are not unique, so the person confirms it with a click.
-  const suggestion = !emailTyped
-    ? withEmail.find((p) => p.name.trim().toLowerCase() === form.engineer_name.trim().toLowerCase())
-    : undefined
+  const engNameKey = form.engineer_name.trim().toLowerCase()
+  // Requires a real name on both sides: empty matching empty would offer a stranger.
+  // Two Payroll people with the same name is not a suggestion, it is a guess, so the
+  // offer is withheld and the dropdown is left to settle it.
+  const namesakes = engNameKey ? withEmail.filter((p) => p.name.trim().toLowerCase() === engNameKey) : []
+  const suggestion = !emailTyped && namesakes.length === 1 ? namesakes[0] : undefined
 
   return (
     <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
@@ -594,9 +599,13 @@ function EngineerForm({ state, onClose, onSaved, onToast }: {
               onChange={(e) => set('email', e.target.value)}
             />
 
-            {payroll && !payroll.ok ? (
+            {payroll === null ? (
+              <p className="mt-1 text-[11px] text-surface-400">Checking Payroll…</p>
+            ) : !payroll.ok || withEmail.length === 0 ? (
               <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                Payroll list unavailable — type the email exactly as it appears in Payroll.
+                {payroll.ok
+                  ? 'No Payroll employee has an email yet, so nothing can be matched against.'
+                  : 'Payroll list unavailable — type the email exactly as it appears in Payroll.'}
                 {payroll.message ? ` (${payroll.message})` : ''}
               </p>
             ) : emailTyped && matched ? (
