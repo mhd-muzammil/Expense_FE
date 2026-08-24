@@ -145,8 +145,8 @@ export default function EngineerPnl() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 mb-6 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary-50 dark:bg-primary-900/30">
             <Cpu className="w-5 h-5 text-primary-600 dark:text-primary-400" />
           </div>
@@ -155,26 +155,33 @@ export default function EngineerPnl() {
             <p className="text-sm text-surface-500 dark:text-surface-400">Live profit/loss — closed calls from OpenCall</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Controls, grouped so a wrap breaks BETWEEN groups and never inside one.
+            The date range in particular has to stay whole — a "from" left stranded
+            on one line above its "to" reads as two unrelated fields. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 lg:justify-end">
           {/* Live status */}
-          {board && (
-            board.live_ok
-              ? <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"><Wifi className="w-3.5 h-3.5" /> OpenCall</span>
-              : <span title={board.message} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"><WifiOff className="w-3.5 h-3.5" /> OpenCall off</span>
-          )}
-          {board && board.payroll_ok !== null && (
-            board.payroll_ok
-              ? <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll</span>
-              : <span title={board.payroll_message} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll off</span>
-          )}
-          <div className="relative">
+          <div className="flex items-center gap-2 shrink-0">
+            {board && (
+              board.live_ok
+                ? <span className="flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"><Wifi className="w-3.5 h-3.5" /> OpenCall</span>
+                : <span title={board.message} className="flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"><WifiOff className="w-3.5 h-3.5" /> OpenCall off</span>
+            )}
+            {board && board.payroll_ok !== null && (
+              board.payroll_ok
+                ? <span className="flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll</span>
+                : <span title={board.payroll_message} className="flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll off</span>
+            )}
+          </div>
+
+          {/* Search */}
+          <div className="relative shrink-0 w-full sm:w-auto">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search engineer, location, segment"
               title="Filters the rows below by engineer name, work location or segment"
-              className="w-56 pl-8 pr-8 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="h-9 w-full sm:w-52 xl:w-64 pl-8 pr-8 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             {search && (
               <button
@@ -186,34 +193,44 @@ export default function EngineerPnl() {
               </button>
             )}
           </div>
-          <button onClick={() => { setCycleMonth(''); setFromDate(currentDay()); setToDate(currentDay()) }} disabled={isToday}
-            title="Back to today (live)"
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${isToday ? 'bg-primary-600 text-white' : 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 hover:bg-primary-100'}`}>
-            Today
-          </button>
-          <div className="flex items-center gap-1" title="Salary cycle: 25th of previous month → 24th of this month">
-            <span className="text-xs font-semibold text-surface-400">Cycle</span>
-            <input type="month" value={cycleMonth} onChange={(e) => applyCycle(e.target.value)}
-              className={`px-2.5 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 ${cycleMonth ? 'border-primary-400' : 'border-surface-200 dark:border-surface-700'}`} />
+
+          {/* Period — kept whole */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
+            <button onClick={() => { setCycleMonth(''); setFromDate(currentDay()); setToDate(currentDay()) }} disabled={isToday}
+              title="Back to today (live)"
+              className={`h-9 px-3 rounded-lg text-sm font-semibold transition-colors ${isToday ? 'bg-primary-600 text-white' : 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 hover:bg-primary-100'}`}>
+              Today
+            </button>
+            <div className="flex flex-1 items-center gap-1.5 min-w-0 sm:flex-none" title="Salary cycle: 25th of previous month → 24th of this month">
+              <span className="text-xs font-semibold text-surface-400">Cycle</span>
+              <input type="month" value={cycleMonth} onChange={(e) => applyCycle(e.target.value)}
+                className={`h-9 min-w-0 flex-1 sm:flex-none sm:w-36 px-2.5 rounded-lg text-sm bg-white dark:bg-surface-800 border text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 ${cycleMonth ? 'border-primary-400' : 'border-surface-200 dark:border-surface-700'}`} />
+            </div>
+            <div className="flex flex-1 items-center gap-1.5 min-w-0 sm:flex-none">
+              <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => { setCycleMonth(''); setFromDate(e.target.value) }} title="From date"
+                className="h-9 min-w-0 flex-1 sm:flex-none sm:w-36 px-2.5 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <span className="text-surface-400 select-none">–</span>
+              <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => { setCycleMonth(''); setToDate(e.target.value) }} title="To date"
+                className="h-9 min-w-0 flex-1 sm:flex-none sm:w-36 px-2.5 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
           </div>
-          <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => { setCycleMonth(''); setFromDate(e.target.value) }} title="From date"
-            className="px-2.5 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
-          <span className="text-surface-400">–</span>
-          <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => { setCycleMonth(''); setToDate(e.target.value) }} title="To date"
-            className="px-2.5 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
-          <button onClick={() => setShowAll((v) => !v)}
-            title={showAll ? 'Showing every engineer — click for only those with data' : 'Overall: show every engineer, not just those with closed calls'}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${showAll ? 'bg-primary-600 text-white' : 'bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-50'}`}>
-            Overall
-          </button>
-          <button onClick={() => load(true)} disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 disabled:opacity-60">
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
-          </button>
-          <button onClick={() => openAdd()}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white">
-            <Plus className="w-4 h-4" /> Add Engineer
-          </button>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setShowAll((v) => !v)}
+              title={showAll ? 'Showing every engineer — click for only those with data' : 'Overall: show every engineer, not just those with closed calls'}
+              className={`h-9 px-3 rounded-lg text-sm font-semibold transition-colors ${showAll ? 'bg-primary-600 text-white' : 'bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-50'}`}>
+              Overall
+            </button>
+            <button onClick={() => load(true)} disabled={refreshing}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 disabled:opacity-60">
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+            <button onClick={() => openAdd()}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white">
+              <Plus className="w-4 h-4" /> Add Engineer
+            </button>
+          </div>
         </div>
       </div>
 
