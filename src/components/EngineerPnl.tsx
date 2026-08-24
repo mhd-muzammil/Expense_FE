@@ -177,14 +177,35 @@ export default function EngineerPnl() {
           <strong>Closed calls not live yet.</strong> {board.message} Set <code>OPENCALL_USERNAME</code> / <code>OPENCALL_PASSWORD</code> (and <code>OPENCALL_API_URL</code>) on the backend to pull real-time closed calls. Everything else works; revenue shows once closed calls arrive.
         </div>
       )}
+      {board && ((board.email_synced ?? 0) > 0 || (board.payroll_auto_linked?.length ?? 0) > 0) && (
+        <div className="mb-4 rounded-xl px-4 py-3 text-sm bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 text-emerald-900 dark:text-emerald-200">
+          <strong>
+            {(board.email_synced ?? 0) + (board.payroll_auto_linked?.length ?? 0)} engineer
+            {(board.email_synced ?? 0) + (board.payroll_auto_linked?.length ?? 0) === 1 ? '' : 's'} linked automatically.
+          </strong>{' '}
+          {(board.email_synced ?? 0) > 0 && (
+            <>Their email came across from OpenCall{(board.payroll_auto_linked?.length ?? 0) > 0 ? '; ' : ', '}</>
+          )}
+          {(board.payroll_auto_linked?.length ?? 0) > 0 && (
+            <>
+              {board.payroll_auto_linked.map((p) => `${p.engineer_name} → ${p.email}`).slice(0, 3).join(', ')}
+              {board.payroll_auto_linked.length > 3 ? ` and ${board.payroll_auto_linked.length - 3} more` : ''}
+              {' '}were matched to Payroll by name, {' '}
+            </>
+          )}
+          so their real salary is now pulled in. Nothing was overwritten — an email already entered by hand is
+          always kept.
+        </div>
+      )}
       {board && board.payroll_ok === true && (board.payroll_unmatched?.length ?? 0) > 0 && (
         <div className="mb-4 rounded-xl px-4 py-3 text-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 text-amber-900 dark:text-amber-200">
           <strong>{board.payroll_unmatched.length} engineer{board.payroll_unmatched.length === 1 ? '' : 's'} not matched in Payroll.</strong>{' '}
           The salary shown for {board.payroll_unmatched.slice(0, 4).join(', ')}
           {board.payroll_unmatched.length > 4 ? ` and ${board.payroll_unmatched.length - 4} more` : ''}{' '}
           is a manual/default figure, not their real pay — so their Profit / Loss is off too. Salary is matched
-          by email only (a name can belong to two people), so edit each one (pencil) and enter the exact email
-          they have in Payroll.
+          by email only (a name can belong to two people). Add their email in OpenCall and it flows here on its
+          own; if the email here is already set but wrong, edit them (pencil) and pick the right person from the
+          Payroll list — an email entered by hand is never overwritten automatically.
         </div>
       )}
       {board && board.payroll_ok === false && (

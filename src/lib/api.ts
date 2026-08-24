@@ -1313,8 +1313,12 @@ export interface EngineerPnlBoard {
   live_ok: boolean
   message: string
   synced: number
+  /** Engineers whose blank email was filled in from OpenCall's roster this load. */
+  email_synced: number
   payroll_ok: boolean | null
   payroll_message: string
+  /** Engineers whose blank email Payroll filled in via a unique name match. */
+  payroll_auto_linked: Array<{ engineer_name: string; email: string }>
   /**
    * Engineers whose salary did NOT come from Payroll even though Payroll was
    * reachable — the figure shown for them is a manual/default value.
