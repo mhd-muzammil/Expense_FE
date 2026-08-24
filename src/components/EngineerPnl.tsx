@@ -30,6 +30,12 @@ export default function EngineerPnl() {
   const [toDate, setToDate] = useState(currentDay())
   // Which engineer's closed calls to drill into (null = no drill-down open).
   const [drill, setDrill] = useState<{ engineer: string; expected: number } | null>(null)
+  /**
+   * Work Location / Segment per engineer for the current window, rolled up from the
+   * same closed-call detail the drill-down shows. Loaded separately so a failure here
+   * can only blank those two columns — the board itself never depends on it.
+   */
+  const [callFacets, setCallFacets] = useState<Record<string, { locations: string[]; segments: string[] }>>({})
   const [showAll, setShowAll] = useState(false)
   const [cycleMonth, setCycleMonth] = useState('')
   const [editing, setEditing] = useState<null | { id?: number; data: EngineerPnlFormData }>(null)
@@ -57,7 +63,34 @@ export default function EngineerPnl() {
     }
   }
 
-  useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fromDate, toDate, showAll])
+  // Roll the closed calls up per engineer to fill the Work Location / Segment columns.
+  // Deliberately its own request: the board must render identically whether or not this
+  // succeeds, so a failure just leaves those two cells blank.
+  const loadFacets = async () => {
+    try {
+      const res = await fetchEngineerClosedCalls({ from: fromDate || currentDay(), to: toDate || currentDay() })
+      const acc: Record<string, { locations: Set<string>; segments: Set<string> }> = {}
+      for (const c of res.calls) {
+        const key = (c.engineer || '').trim().toLowerCase()
+        if (!key) continue
+        const bucket = acc[key] || (acc[key] = { locations: new Set(), segments: new Set() })
+        const loc = (c.work_location_name || c.work_location || '').trim()
+        const seg = (c.segment || '').trim()
+        if (loc) bucket.locations.add(loc)
+        if (seg) bucket.segments.add(seg)
+      }
+      setCallFacets(Object.fromEntries(
+        Object.entries(acc).map(([k, v]) => [k, {
+          locations: [...v.locations].sort(),
+          segments: [...v.segments].sort(),
+        }]),
+      ))
+    } catch {
+      setCallFacets({})
+    }
+  }
+
+  useEffect(() => { load(); loadFacets() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fromDate, toDate, showAll])
   // Live auto-refresh every 60s (closed calls update in near real time).
   useEffect(() => {
     const t = setInterval(() => load(true), 60000)
@@ -182,6 +215,8 @@ export default function EngineerPnl() {
               <thead>
                 <tr className="bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700 text-surface-600 dark:text-surface-400">
                   <th className="text-left p-3 font-semibold">Engineer</th>
+                  <th className="text-left p-3 font-semibold">Work<br/>Location</th>
+                  <th className="text-left p-3 font-semibold">Segment</th>
                   <th className="text-right p-3 font-semibold">Per Day<br/>Target</th>
                   <th className="text-right p-3 font-semibold">Closed<br/>P/D</th>
                   <th className="text-right p-3 font-semibold text-primary-600 dark:text-primary-400">Total Closed<br/>P/M</th>
@@ -201,6 +236,12 @@ export default function EngineerPnl() {
                   return (
                     <tr key={r.id} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30">
                       <td className="p-3 font-semibold text-surface-900 dark:text-white">{r.engineer_name}</td>
+                      <td className="p-3 text-surface-600 dark:text-surface-300 whitespace-nowrap">
+                        <FacetCell values={callFacets[r.engineer_name.trim().toLowerCase()]?.locations} />
+                      </td>
+                      <td className="p-3 text-surface-600 dark:text-surface-300 whitespace-nowrap">
+                        <FacetCell values={callFacets[r.engineer_name.trim().toLowerCase()]?.segments} />
+                      </td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.per_day_target}</td>
                       <td className="p-3 text-right text-surface-700 dark:text-surface-300">{r.actual_closed_pd}</td>
                       <td className="p-3 text-right font-bold text-primary-600 dark:text-primary-400">
@@ -240,7 +281,8 @@ export default function EngineerPnl() {
                 <tfoot>
                   <tr className="border-t-2 border-surface-200 dark:border-surface-600 font-bold text-surface-900 dark:text-white bg-surface-50/50 dark:bg-surface-900/40">
                     <td className="p-3">Total ({t.engg_count})</td>
-                    <td colSpan={2}></td>
+                    {/* Work Location + Segment + Per Day Target + Closed P/D */}
+                    <td colSpan={4}></td>
                     <td className="p-3 text-right text-primary-600 dark:text-primary-400">{inr(t.closed_calls)}</td>
                     <td colSpan={5}></td>
                     <td className="p-3 text-right text-emerald-600 dark:text-emerald-400">₹{inr(t.revenue)}</td>
@@ -281,6 +323,25 @@ export default function EngineerPnl() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * One engineer's distinct Work Locations (or Segments) for the period. An engineer can
+ * close calls across several of either, so the first two are shown and the rest collapse
+ * into a "+N" whose tooltip lists them — the row stays one line either way.
+ */
+function FacetCell({ values }: { values?: string[] }) {
+  if (!values || values.length === 0) {
+    return <span className="text-surface-300 dark:text-surface-600">—</span>
+  }
+  const shown = values.slice(0, 2)
+  const rest = values.length - shown.length
+  return (
+    <span title={values.join(', ')}>
+      {shown.join(', ')}
+      {rest > 0 && <span className="ml-1 text-xs text-surface-400">+{rest}</span>}
+    </span>
   )
 }
 
