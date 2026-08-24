@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Cpu, Plus, RefreshCw, Trash2, Pencil, X, Loader2, TrendingUp, TrendingDown, Wifi, WifiOff, UserPlus, IndianRupee,
+  Cpu, Plus, RefreshCw, Trash2, Pencil, X, Loader2, TrendingUp, TrendingDown, Wifi, WifiOff, UserPlus, IndianRupee, Search,
 } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import {
@@ -38,6 +38,7 @@ export default function EngineerPnl() {
    */
   const [callFacets, setCallFacets] = useState<Record<string, { locations: string[]; segments: string[] }>>({})
   const [showAll, setShowAll] = useState(false)
+  const [search, setSearch] = useState('')
   const [cycleMonth, setCycleMonth] = useState('')
   const [editing, setEditing] = useState<null | { id?: number; data: EngineerPnlFormData }>(null)
 
@@ -113,7 +114,33 @@ export default function EngineerPnl() {
     catch { addToast('error', 'Failed to remove') }
   }
 
-  const t = board?.totals
+  // Search across the three things a row is identified by — who the engineer is,
+  // where they worked and what segment — since a reader looking for "vellore" does
+  // not know or care which column the word lives in. Every term must appear
+  // somewhere, so a second word narrows rather than widens.
+  const terms = search.toLowerCase().split(/\s+/).filter(Boolean)
+  const allRows = board?.rows ?? []
+  const rowMatches = (r: EngineerPnlRow) => {
+    if (!terms.length) return true
+    const f = callFacets[r.engineer_name.trim().toLowerCase()]
+    const hay = [r.engineer_name, ...(f?.locations ?? []), ...(f?.segments ?? [])].join(' ').toLowerCase()
+    return terms.every((term) => hay.includes(term))
+  }
+  const rows = terms.length ? allRows.filter(rowMatches) : allRows
+
+  // With a search on, the footer must add up what is actually on screen — a total
+  // that counts hidden rows would quietly contradict the rows above it. With no
+  // search the server's own totals are used untouched.
+  const sum = (f: (r: EngineerPnlRow) => number) => rows.reduce((n, r) => n + (f(r) || 0), 0)
+  const t = terms.length
+    ? {
+        engg_count: sum((r) => r.engg_count),
+        closed_calls: sum((r) => r.total_calls_closed_pm),
+        revenue: String(sum((r) => parseFloat(r.revenue))),
+        total_engg_salary: String(sum((r) => parseFloat(r.engg_salary))),
+        nett: String(sum((r) => parseFloat(r.nett))),
+      }
+    : board?.totals
 
   return (
     <div className="animate-fade-in">
@@ -140,6 +167,25 @@ export default function EngineerPnl() {
               ? <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll</span>
               : <span title={board.payroll_message} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"><IndianRupee className="w-3.5 h-3.5" /> Payroll off</span>
           )}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search engineer, location, segment"
+              title="Filters the rows below by engineer name, work location or segment"
+              className="w-56 pl-8 pr-8 py-2 rounded-lg text-sm bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                title="Clear search"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-400 hover:text-surface-700 dark:hover:text-surface-200"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
           <button onClick={() => { setCycleMonth(''); setFromDate(currentDay()); setToDate(currentDay()) }} disabled={isToday}
             title="Back to today (live)"
             className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${isToday ? 'bg-primary-600 text-white' : 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 hover:bg-primary-100'}`}>
@@ -218,7 +264,12 @@ export default function EngineerPnl() {
 
       {/* Summary tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <Tile label="Engineers" value={board ? String(board.rows.length) : '—'} />
+        {/* Counts the rows on screen, like the three tiles beside it — a search that
+            narrowed the table but left this at the full count would misread as a total. */}
+        <Tile
+          label={terms.length ? `Engineers (of ${allRows.length})` : 'Engineers'}
+          value={board ? String(rows.length) : '—'}
+        />
         <Tile label="Closed Calls (P/M)" value={t ? inr(t.closed_calls) : '—'} accent="text-primary-600 dark:text-primary-400" />
         <Tile label="Total Engg Earning" value={t ? `₹${inr(t.revenue)}` : '—'} accent="text-emerald-600 dark:text-emerald-400" />
         <Tile label="Total Profit / Loss" value={t ? `₹${inr(t.nett)}` : '—'} accent={t && parseFloat(t.nett) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} />
@@ -243,8 +294,27 @@ export default function EngineerPnl() {
               </>
             )}
           </div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Search className="w-12 h-12 text-surface-300 dark:text-surface-600 mb-3" />
+            <p className="text-surface-500 dark:text-surface-400 font-medium">
+              No engineer matches “{search}”
+            </p>
+            <p className="mt-1 text-xs text-surface-400">
+              Work location and segment come from the closed calls in this period, so an engineer with no calls
+              here can only be found by name.
+            </p>
+            <button onClick={() => setSearch('')} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">
+              Clear search →
+            </button>
+          </div>
         ) : (
           <div className="overflow-x-auto">
+            {terms.length > 0 && (
+              <div className="px-3 pt-3 text-xs text-surface-500 dark:text-surface-400">
+                Showing <strong className="text-surface-700 dark:text-surface-200">{rows.length}</strong> of {allRows.length} engineers — totals below are for these {rows.length}.
+              </div>
+            )}
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700 text-surface-600 dark:text-surface-400">
@@ -265,7 +335,7 @@ export default function EngineerPnl() {
                 </tr>
               </thead>
               <tbody>
-                {board.rows.map((r) => {
+                {rows.map((r) => {
                   const nett = parseFloat(r.nett)
                   return (
                     <tr key={r.id} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30">
