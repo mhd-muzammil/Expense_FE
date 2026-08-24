@@ -1380,6 +1380,30 @@ export const fetchEngineerClosedCalls = (params: { from: string; to: string; eng
   return api.get<EngineerClosedCalls>(`/engineer-pnl/closed-calls/?${p.toString()}`).then(res => res.data)
 }
 
+export interface PayrollEmployee {
+  name: string
+  email: string
+  salary: number | null
+}
+
+export interface PayrollEmployees {
+  ok: boolean
+  message: string
+  count: number
+  employees: PayrollEmployee[]
+}
+
+/**
+ * The people Payroll knows about, name and email together.
+ *
+ * Salary only reaches an engineer when the email on their P&L record is the exact
+ * email Payroll holds, so the edit form offers this list to pick from instead of
+ * asking for the address to be typed. Degrades to ok:false with an empty list when
+ * Payroll is unreachable — the form still accepts a typed email.
+ */
+export const fetchPayrollEmployees = () =>
+  api.get<PayrollEmployees>('/engineer-pnl/payroll-employees/').then(res => res.data)
+
 
 // Sleek Bill Invoice Register — imported invoices mirroring the Sleek Bill list
 export interface SleekBillInvoice {

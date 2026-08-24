@@ -4,8 +4,9 @@ import {
 } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import {
-  fetchEngineerPnlBoard, createEngineerPnl, updateEngineerPnl, fetchEngineerClosedCalls,
+  fetchEngineerPnlBoard, createEngineerPnl, updateEngineerPnl, fetchEngineerClosedCalls, fetchPayrollEmployees,
   type EngineerPnlBoard, type EngineerPnlRow, type EngineerPnlFormData, type EngineerClosedCall,
+  type PayrollEmployees,
 } from '@/lib/api'
 
 const inr = (v: string | number | null | undefined) => {
@@ -492,6 +493,17 @@ function EngineerForm({ state, onClose, onSaved, onToast }: {
 }) {
   const [form, setForm] = useState<EngineerPnlFormData>(state.data)
   const [saving, setSaving] = useState(false)
+  // Payroll's people, so the email can be PICKED instead of typed. Salary matches on
+  // an exact email and nothing else, so one wrong character silently leaves the
+  // engineer on a default figure — that is the mistake this list exists to remove.
+  const [payroll, setPayroll] = useState<PayrollEmployees | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetchPayrollEmployees()
+      .then((d) => { if (alive) setPayroll(d) })
+      .catch(() => { if (alive) setPayroll({ ok: false, message: 'Could not reach Payroll.', count: 0, employees: [] }) })
+    return () => { alive = false }
+  }, [])
   const set = (k: keyof EngineerPnlFormData, v: string | number | boolean) => setForm((p) => ({ ...p, [k]: v }))
   const num = (v: string) => (v === '' ? 0 : parseFloat(v))
 
@@ -508,6 +520,20 @@ function EngineerForm({ state, onClose, onSaved, onToast }: {
   const inputCls = 'w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500'
   const labelCls = 'block text-xs font-medium text-surface-500 dark:text-surface-400 mb-1'
 
+  // Only people who actually have an email can be matched on one; the rest are still
+  // counted by `payroll.count` so a missing email reads as missing, not as absent.
+  const withEmail = (payroll?.employees ?? []).filter((p) => p.email)
+  const emailTyped = (form.email ?? '').trim().toLowerCase()
+  const matched = withEmail.find((p) => p.email.toLowerCase() === emailTyped)
+  // The dropdown only shows a selection when the email really is one of Payroll's,
+  // so a hand-typed near-miss never looks like a confirmed pick.
+  const pickedEmail = matched ? matched.email : ''
+  // A same-name employee is a hint worth offering, never an automatic choice —
+  // names are not unique, so the person confirms it with a click.
+  const suggestion = !emailTyped
+    ? withEmail.find((p) => p.name.trim().toLowerCase() === form.engineer_name.trim().toLowerCase())
+    : undefined
+
   return (
     <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-surface-800 shadow-2xl border border-surface-100 dark:border-surface-700" onClick={(e) => e.stopPropagation()}>
@@ -517,7 +543,63 @@ function EngineerForm({ state, onClose, onSaved, onToast }: {
         </div>
         <div className="flex-1 overflow-y-auto p-5 grid grid-cols-2 gap-4">
           <div className="col-span-2"><label className={labelCls}>Engineer name * <span className="text-surface-400">(exact OpenCall name)</span></label><input className={inputCls} value={form.engineer_name} onChange={(e) => set('engineer_name', e.target.value)} /></div>
-          <div className="col-span-2"><label className={labelCls}>Email (optional)</label><input className={inputCls} value={form.email} onChange={(e) => set('email', e.target.value)} /></div>
+          <div className="col-span-2">
+            <label className={labelCls}>
+              Payroll email <span className="text-surface-400">(this is what salary matches on)</span>
+            </label>
+            {payroll === null ? (
+              <div className="flex items-center gap-2 px-3 py-2 text-xs text-surface-400">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading Payroll employees…
+              </div>
+            ) : payroll.ok && withEmail.length > 0 ? (
+              <select
+                className={inputCls}
+                value={pickedEmail}
+                onChange={(e) => set('email', e.target.value)}
+              >
+                <option value="">— Select the person from Payroll —</option>
+                {withEmail.map((p) => (
+                  <option key={p.email} value={p.email}>
+                    {p.name} — {p.email}{p.salary != null ? ` (₹${inr(p.salary)})` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+
+            <input
+              className={`${inputCls} ${payroll?.ok && withEmail.length > 0 ? 'mt-2' : ''}`}
+              placeholder="name@company.com"
+              value={form.email ?? ''}
+              onChange={(e) => set('email', e.target.value)}
+            />
+
+            {payroll && !payroll.ok ? (
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                Payroll list unavailable — type the email exactly as it appears in Payroll.
+                {payroll.message ? ` (${payroll.message})` : ''}
+              </p>
+            ) : emailTyped && matched ? (
+              <p className="mt-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                Matches {matched.name} in Payroll{matched.salary != null ? ` — ₹${inr(matched.salary)} will be pulled in` : ''}.
+              </p>
+            ) : emailTyped ? (
+              <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                No Payroll employee has this email — salary will stay at the manual figure. Check for a typo.
+              </p>
+            ) : suggestion ? (
+              <button
+                type="button"
+                onClick={() => set('email', suggestion.email)}
+                className="mt-1 text-[11px] font-medium text-primary-600 dark:text-primary-400 hover:underline"
+              >
+                Payroll has a “{suggestion.name}” — use {suggestion.email}?
+              </button>
+            ) : (
+              <p className="mt-1 text-[11px] text-surface-400">
+                Leave blank and this engineer keeps the manual salary below.
+              </p>
+            )}
+          </div>
           <div><label className={labelCls}>Per call rate (₹)</label><input className={inputCls} value={form.per_call_rate} onChange={(e) => set('per_call_rate', num(e.target.value))} /></div>
           <div><label className={labelCls}>Engineer salary (₹)</label><input className={inputCls} value={form.engg_salary} onChange={(e) => set('engg_salary', num(e.target.value))} /></div>
           <div><label className={labelCls}>Per day target</label><input className={inputCls} value={form.per_day_target} onChange={(e) => set('per_day_target', num(e.target.value))} /></div>
