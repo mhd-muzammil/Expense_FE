@@ -52,7 +52,7 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
-export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice' | 'subscription' | 'insights'
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice' | 'subscription' | 'insights' | 'collections'
 
 export interface AuthUser {
   username: string
@@ -1558,3 +1558,79 @@ export const deleteSubscription = (id: number) =>
 export default api
 
 
+
+// ---------------------------------------------------------------------------
+// Collections — outstanding receivables per client
+// ---------------------------------------------------------------------------
+
+export type AgingBucket = '0-30' | '31-60' | '61-90' | '90+'
+
+export interface CollectionsClient {
+  client_name: string
+  /** Every spelling of this name that was merged into one row. */
+  name_variants: string[]
+  balance: string
+  bill_count: number
+  oldest_days: number
+  oldest_invoice: string
+  phone: string
+  /** 91XXXXXXXXXX, or '' when no usable Indian mobile is on file. */
+  whatsapp: string
+  email: string
+  city: string
+  gstin: string
+  buckets: Record<AgingBucket, string>
+}
+
+export interface CollectionsData {
+  as_of: string
+  summary: {
+    billed: string
+    collected: string
+    outstanding: string
+    credit_notes: string
+    unpaid_invoices: number
+    overdue_invoices: number
+    overdue_amount: string
+    clients_owing: number
+  }
+  aging: Array<{ bucket: AgingBucket; count: number; amount: string }>
+  clients: CollectionsClient[]
+  filters: { search: string; bucket: string; min: string }
+}
+
+export const fetchCollections = (params?: { search?: string; bucket?: string; min?: string }) => {
+  const p = new URLSearchParams()
+  if (params?.search) p.set('search', params.search)
+  if (params?.bucket) p.set('bucket', params.bucket)
+  if (params?.min) p.set('min', params.min)
+  const qs = p.toString()
+  return api.get<CollectionsData>(`/collections/${qs ? `?${qs}` : ''}`).then((r) => r.data)
+}
+
+export interface CollectionsInvoice {
+  id: number
+  invoice_number: string
+  issue_date: string
+  due_date: string
+  days_overdue: number
+  bucket: AgingBucket
+  total: string
+  amount_paid: string
+  balance: string
+  status: string
+}
+
+export interface CollectionsInvoices {
+  client_name: string
+  count: number
+  balance: string
+  whatsapp: string
+  invoices: CollectionsInvoice[]
+}
+
+/** The unpaid invoices behind one client's balance, oldest debt first. */
+export const fetchCollectionsInvoices = (client: string) =>
+  api
+    .get<CollectionsInvoices>(`/collections/invoices/?client=${encodeURIComponent(client)}`)
+    .then((r) => r.data)
