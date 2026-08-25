@@ -1299,14 +1299,10 @@ export interface EngineerPnlRow {
   total_working_days: number
   actual_working_days: number
   salary_source: 'payroll' | 'manual'
-  /** A week of pay: the same per-day figure, seven times. */
-  week_salary: string
-  /** Engg Earning − one week of salary. */
-  profit_loss_week: string
-  nett_week: string
-  /** Engg Earning − the engineer's FULL salary (not the one-day share of it). */
-  profit_loss_full: string
-  nett_full: string
+  /** Days in the window being viewed — what the salary below is charged for. */
+  period_days: number
+  /** Salary owed for THIS window: the one-day rate times period_days. */
+  window_salary: string
   closed_calls: number
   actual_closed_pd: string
   total_calls_closed_pm: number
@@ -1321,6 +1317,8 @@ export interface EngineerPnlBoard {
   live_ok: boolean
   message: string
   synced: number
+  /** Days the window covers, inclusive of both ends. */
+  period_days: number
   /** Engineers whose blank email was filled in from OpenCall's roster this load. */
   email_synced: number
   payroll_ok: boolean | null
@@ -1336,7 +1334,7 @@ export interface EngineerPnlBoard {
   total_configured: number
   meta: Record<string, unknown>
   rows: EngineerPnlRow[]
-  totals: { engg_count: number; closed_calls: number; revenue: string; total_engg_salary: string; nett: string; nett_week: string; nett_full: string }
+  totals: { engg_count: number; closed_calls: number; revenue: string; total_engg_salary: string; nett: string; window_salary: string }
   unmatched_engineers: Array<{ engineer_name: string; closed_calls: number }>
 }
 
