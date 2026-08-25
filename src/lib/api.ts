@@ -1301,6 +1301,10 @@ export interface EngineerPnlRow {
   salary_source: 'payroll' | 'manual'
   /** Days in the window being viewed — what the salary below is charged for. */
   period_days: number
+  /** Length of the salary cycle (25th→24th) the window sits in: 28–31 days. */
+  cycle_days: number
+  /** What one day of this window costs: the salary spread over its own cycle. */
+  daily_rate: string
   /** Salary owed for THIS window: the one-day rate times period_days. */
   window_salary: string
   closed_calls: number
@@ -1319,6 +1323,8 @@ export interface EngineerPnlBoard {
   synced: number
   /** Days the window covers, inclusive of both ends. */
   period_days: number
+  /** Length of the salary cycle the window sits in. */
+  cycle_days: number
   /** Engineers whose blank email was filled in from OpenCall's roster this load. */
   email_synced: number
   payroll_ok: boolean | null

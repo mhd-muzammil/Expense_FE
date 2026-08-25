@@ -215,6 +215,10 @@ export default function EngineerPnl() {
   // span, so it is stated on screen rather than left to be counted off the dates.
   const days = board?.period_days ?? 1
   const daysLabel = days === 1 ? '1 day' : `${days} days`
+  const cycleDays = board?.cycle_days ?? 30
+  // A window that is exactly the cycle costs exactly one salary; saying so stops
+  // "Salary for 31 days" reading as though someone were paid extra for a long month.
+  const isFullCycle = days === cycleDays
 
   return (
     <div className="animate-fade-in">
@@ -450,7 +454,7 @@ export default function EngineerPnl() {
                   <th className="text-right p-3 font-semibold text-primary-600 dark:text-primary-400">Total Closed<br/>P/M</th>
                   <th className="text-right p-3 font-semibold">Per Call<br/>Rate</th>
                   <th className="text-right p-3 font-semibold">Engg<br/>Salary</th>
-                  <th className="text-right p-3 font-semibold whitespace-nowrap" title={`The salary owed for these ${daysLabel} — the 1 day rate times ${days}`}>Salary<br/><span className="text-[10px] font-normal text-surface-400">for {daysLabel}</span></th>
+                  <th className="text-right p-3 font-semibold whitespace-nowrap" title={isFullCycle ? `A full salary cycle — each engineer's whole salary` : `The salary owed for these ${daysLabel}: their salary spread over its ${cycleDays}-day cycle, times ${days}`}>Salary<br/><span className="text-[10px] font-normal text-surface-400">{isFullCycle ? 'full cycle' : `for ${daysLabel}`}</span></th>
                   <th className="text-right p-3 font-semibold">Total<br/>WD</th>
                   <th className="text-right p-3 font-semibold">Actual<br/>WD</th>
                   <th className="text-right p-3 font-semibold text-emerald-600 dark:text-emerald-400">Engg<br/>Earning</th>
@@ -509,7 +513,7 @@ export default function EngineerPnl() {
                           </span>
                         ) : null}
                       </td>
-                      <td className="p-3 text-right text-surface-500 dark:text-surface-400" title={`₹${inr(r.per_day)} per day × ${days}`}>₹{inr(r.window_salary ?? r.per_day)}</td>
+                      <td className="p-3 text-right text-surface-500 dark:text-surface-400" title={`₹${inr(r.daily_rate ?? r.per_day)} a day × ${days} — the salary spread over its ${cycleDays}-day cycle`}>₹{inr(r.window_salary ?? r.per_day)}</td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.total_working_days}</td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.actual_working_days}</td>
                       <td className="p-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">₹{inr(r.revenue)}</td>
