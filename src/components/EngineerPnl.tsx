@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
-  Cpu, Plus, RefreshCw, Trash2, Pencil, X, Loader2, TrendingUp, TrendingDown, Wifi, WifiOff, UserPlus, IndianRupee, Search,
+  Cpu, Plus, RefreshCw, Trash2, Pencil, X, Loader2, TrendingUp, TrendingDown, Wifi, WifiOff, UserPlus, IndianRupee, Search, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import {
@@ -41,6 +41,14 @@ export default function EngineerPnl() {
   const [search, setSearch] = useState('')
   const [cycleMonth, setCycleMonth] = useState('')
   const [editing, setEditing] = useState<null | { id?: number; data: EngineerPnlFormData }>(null)
+  /**
+   * The engineer whose calls are expanded inline (null = none). Only one at a time:
+   * two open rows push the table's own numbers off the screen, which is what the
+   * reader opened the row to compare against.
+   */
+  const [expanded, setExpanded] = useState<number | null>(null)
+  /** Calls already fetched, per engineer, so re-opening a row costs nothing. */
+  const [rowCalls, setRowCalls] = useState<Record<number, { loading: boolean; error: string; calls: EngineerClosedCall[] }>>({})
 
   const isToday = fromDate === currentDay() && toDate === currentDay()
 
@@ -134,6 +142,28 @@ export default function EngineerPnl() {
   // that counts hidden rows would quietly contradict the rows above it. With no
   // search the server's own totals are used untouched.
   const sum = (f: (r: EngineerPnlRow) => number) => rows.reduce((n, r) => n + (f(r) || 0), 0)
+  const toggleRow = (r: EngineerPnlRow) => {
+    if (expanded === r.id) { setExpanded(null); return }
+    setExpanded(r.id)
+    if (rowCalls[r.id] && !rowCalls[r.id].error) return  // already have it
+    setRowCalls((p) => ({ ...p, [r.id]: { loading: true, error: '', calls: [] } }))
+    fetchEngineerClosedCalls({ from: fromDate || currentDay(), to: toDate || currentDay(), engineer: r.engineer_name })
+      .then((res) => setRowCalls((p) => ({
+        ...p,
+        [r.id]: {
+          loading: false,
+          // A window OpenCall cannot reach returns an empty list rather than an
+          // error, so say which it was instead of showing a bare "no calls".
+          error: res.live_ok ? '' : (res.message || 'OpenCall is not reachable right now'),
+          calls: res.calls,
+        },
+      })))
+      .catch(() => setRowCalls((p) => ({ ...p, [r.id]: { loading: false, error: 'Could not load these calls', calls: [] } })))
+  }
+
+  // Anything that changes which calls a row covers invalidates what was fetched.
+  useEffect(() => { setRowCalls({}); setExpanded(null) }, [fromDate, toDate])
+
   const t = terms.length
     ? {
         engg_count: sum((r) => r.engg_count),
@@ -357,8 +387,20 @@ export default function EngineerPnl() {
                 {rows.map((r) => {
                   const nett = parseFloat(r.nett)
                   return (
-                    <tr key={r.id} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30">
-                      <td className="p-3 font-semibold text-surface-900 dark:text-white">{r.engineer_name}</td>
+                    <Fragment key={r.id}>
+                    <tr className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30">
+                      <td className="p-3 font-semibold text-surface-900 dark:text-white">
+                        <button
+                          onClick={() => toggleRow(r)}
+                          title={expanded === r.id ? 'Hide the calls' : `Show the ${r.total_calls_closed_pm} call${r.total_calls_closed_pm === 1 ? '' : 's'} ${r.engineer_name} closed`}
+                          className="inline-flex items-center gap-1 text-left hover:text-primary-600 dark:hover:text-primary-400"
+                        >
+                          {expanded === r.id
+                            ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-primary-500" />
+                            : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-surface-400" />}
+                          {r.engineer_name}
+                        </button>
+                      </td>
                       <td className="p-3 text-surface-600 dark:text-surface-300 whitespace-nowrap">
                         <FacetCell values={callFacets[r.engineer_name.trim().toLowerCase()]?.locations} />
                       </td>
@@ -406,6 +448,19 @@ export default function EngineerPnl() {
                         </div>
                       </td>
                     </tr>
+                    {expanded === r.id && (
+                      <tr className="border-b border-surface-100 dark:border-surface-700/50">
+                        {/* Spans every column so the panel cannot shift the header above it. */}
+                        <td colSpan={14} className="p-0 bg-surface-50/60 dark:bg-surface-900/40">
+                          <RowCalls
+                            state={rowCalls[r.id]}
+                            engineer={r.engineer_name}
+                            expected={r.total_calls_closed_pm}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })}
               </tbody>
@@ -463,6 +518,78 @@ export default function EngineerPnl() {
  * close calls across several of either, so the first two are shown and the rest collapse
  * into a "+N" whose tooltip lists them — the row stays one line either way.
  */
+/**
+ * The calls one engineer closed in the current window, opened inline under their row.
+ *
+ * Deliberately a compact list rather than the full drill-down table: it sits inside
+ * the board, and a second wide table there would push the very numbers the reader
+ * opened it to check off the screen. The modal on the count stays for the full view.
+ */
+function RowCalls({ state, engineer, expected }: {
+  state?: { loading: boolean; error: string; calls: EngineerClosedCall[] }
+  engineer: string
+  expected: number
+}) {
+  if (!state || state.loading) {
+    return (
+      <div className="flex items-center gap-2 px-5 py-4 text-sm text-surface-500">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading {engineer}&rsquo;s calls&hellip;
+      </div>
+    )
+  }
+  if (state.error) {
+    return (
+      <div className="px-5 py-4 text-sm text-amber-600 dark:text-amber-400">{state.error}</div>
+    )
+  }
+  if (state.calls.length === 0) {
+    return (
+      <div className="px-5 py-4 text-sm text-surface-500">
+        No closed calls for {engineer} in this period.
+      </div>
+    )
+  }
+  return (
+    <div className="px-5 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-surface-400 mb-2">
+        {state.calls.length} closed call{state.calls.length === 1 ? '' : 's'}
+        {/* The count above comes from OpenCall's own total; if the list is shorter,
+            saying so beats quietly showing fewer rows than the number promised. */}
+        {state.calls.length !== expected && (
+          <span className="ml-2 font-normal normal-case text-amber-600 dark:text-amber-400">
+            (the board counts {expected} &mdash; open the count for the full list)
+          </span>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        {state.calls.map((c, i) => (
+          <div
+            key={`${c.ticket_id}-${c.date}-${i}`}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 px-3 py-2 text-xs"
+          >
+            <span className="font-mono text-surface-400 w-5 shrink-0">{i + 1}.</span>
+            <span className="font-semibold text-surface-800 dark:text-surface-100">{c.ticket_id || 'No ticket'}</span>
+            {c.case_id && <span className="text-surface-500 dark:text-surface-400">Case {c.case_id}</span>}
+            {c.segment && (
+              <span className="px-1.5 py-0.5 rounded bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-medium">
+                {c.segment}
+              </span>
+            )}
+            {c.product_name && <span className="text-surface-600 dark:text-surface-300">{c.product_name}</span>}
+            {(c.work_location_name || c.work_location) && (
+              <span className="text-surface-500 dark:text-surface-400">
+                {c.work_location_name || c.work_location}
+              </span>
+            )}
+            {c.wo_otc_code && <span className="font-mono text-surface-400">{c.wo_otc_code}</span>}
+            <span className="ml-auto text-surface-400">{c.date}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function FacetCell({ values }: { values?: string[] }) {
   if (!values || values.length === 0) {
     return <span className="text-surface-300 dark:text-surface-600">—</span>
