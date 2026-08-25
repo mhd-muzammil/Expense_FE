@@ -53,7 +53,7 @@ const PERIODS = [
 
 const emptyForm = (): EngineerPnlFormData => ({
   engineer_name: '', email: '', engg_count: 1, per_day_target: 10,
-  per_call_rate: 350, engg_salary: 25000, total_working_days: 30, actual_working_days: 25, active: true,
+  per_call_rate: 420, engg_salary: 25000, total_working_days: 30, actual_working_days: 25, active: true,
 })
 
 export default function EngineerPnl() {
