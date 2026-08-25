@@ -1299,6 +1299,14 @@ export interface EngineerPnlRow {
   total_working_days: number
   actual_working_days: number
   salary_source: 'payroll' | 'manual'
+  /** A week of pay: the same per-day figure, seven times. */
+  week_salary: string
+  /** Engg Earning − one week of salary. */
+  profit_loss_week: string
+  nett_week: string
+  /** Engg Earning − the engineer's FULL salary (not the one-day share of it). */
+  profit_loss_full: string
+  nett_full: string
   closed_calls: number
   actual_closed_pd: string
   total_calls_closed_pm: number
@@ -1328,7 +1336,7 @@ export interface EngineerPnlBoard {
   total_configured: number
   meta: Record<string, unknown>
   rows: EngineerPnlRow[]
-  totals: { engg_count: number; closed_calls: number; revenue: string; total_engg_salary: string; nett: string }
+  totals: { engg_count: number; closed_calls: number; revenue: string; total_engg_salary: string; nett: string; nett_week: string; nett_full: string }
   unmatched_engineers: Array<{ engineer_name: string; closed_calls: number }>
 }
 

@@ -42,6 +42,12 @@ export default function EngineerPnl() {
   const [cycleMonth, setCycleMonth] = useState('')
   const [editing, setEditing] = useState<null | { id?: number; data: EngineerPnlFormData }>(null)
   /**
+   * Which salary the Profit/Loss is measured against. Three columns side by side
+   * asked the reader to work out which one they wanted; one column and a choice
+   * above it asks them to decide once.
+   */
+  const [basis, setBasis] = useState<'day' | 'week' | 'month'>('day')
+  /**
    * The engineer whose calls are expanded inline (null = none). Only one at a time:
    * two open rows push the table's own numbers off the screen, which is what the
    * reader opened the row to compare against.
@@ -142,6 +148,18 @@ export default function EngineerPnl() {
   // that counts hidden rows would quietly contradict the rows above it. With no
   // search the server's own totals are used untouched.
   const sum = (f: (r: EngineerPnlRow) => number) => rows.reduce((n, r) => n + (f(r) || 0), 0)
+  // Everything the basis changes, in one place: the salary shown, the profit
+  // measured against it, and what each is called.
+  const BASIS = {
+    day: { label: 'Today', salaryLabel: '1 Day Salary', plLabel: 'vs 1 day salary', hint: 'Did they cover one day of their pay?' },
+    week: { label: 'This Week', salaryLabel: '1 Week Salary', plLabel: 'vs 1 week salary', hint: 'Did they cover a week of their pay? (1 day salary × 7)' },
+    month: { label: 'Full Month', salaryLabel: 'Full Salary', plLabel: 'vs full salary', hint: 'Did they cover their whole monthly salary?' },
+  } as const
+  const rowSalary = (r: EngineerPnlRow) =>
+    basis === 'day' ? r.per_day : basis === 'week' ? (r.week_salary ?? r.per_day) : r.engg_salary
+  const rowNett = (r: EngineerPnlRow) =>
+    basis === 'day' ? r.nett : basis === 'week' ? (r.nett_week ?? r.nett) : (r.nett_full ?? r.nett)
+
   const toggleRow = (r: EngineerPnlRow) => {
     if (expanded === r.id) { setExpanded(null); return }
     setExpanded(r.id)
@@ -171,8 +189,19 @@ export default function EngineerPnl() {
         revenue: String(sum((r) => parseFloat(r.revenue))),
         total_engg_salary: String(sum((r) => parseFloat(r.engg_salary))),
         nett: String(sum((r) => parseFloat(r.nett))),
+        nett_week: String(sum((r) => parseFloat(r.nett_week ?? r.nett))),
+        nett_full: String(sum((r) => parseFloat(r.nett_full ?? r.nett))),
       }
     : board?.totals
+
+  // The same profit read against each salary period. Shown on all three cards so
+  // the comparison the three columns used to make is still available at a glance,
+  // without asking the table to carry it.
+  const totalFor = (b: 'day' | 'week' | 'month') => {
+    if (!t) return 0
+    return parseFloat(b === 'day' ? t.nett : b === 'week' ? (t.nett_week ?? t.nett) : (t.nett_full ?? t.nett))
+  }
+  const totNett = totalFor(basis)
 
   return (
     <div className="animate-fade-in">
@@ -321,7 +350,33 @@ export default function EngineerPnl() {
         />
         <Tile label="Closed Calls (P/M)" value={t ? inr(t.closed_calls) : '—'} accent="text-primary-600 dark:text-primary-400" />
         <Tile label="Total Engg Earning" value={t ? `₹${inr(t.revenue)}` : '—'} accent="text-emerald-600 dark:text-emerald-400" />
-        <Tile label="Total Profit / Loss" value={t ? `₹${inr(t.nett)}` : '—'} accent={t && parseFloat(t.nett) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} />
+        <Tile label={`Total Profit / Loss (${BASIS[basis].label})`} value={t ? `₹${inr(totNett)}` : '—'} accent={totNett >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'} />
+      </div>
+
+      {/* Profit / Loss basis — one choice, three answers on show */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        {(['day', 'week', 'month'] as const).map((b) => {
+          const v = totalFor(b)
+          const on = basis === b
+          return (
+            <button
+              key={b}
+              onClick={() => setBasis(b)}
+              title={BASIS[b].hint}
+              className={`text-left rounded-xl border px-4 py-3 transition-all ${
+                on
+                  ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30 ring-2 ring-primary-500'
+                  : 'border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 hover:border-primary-300'
+              }`}
+            >
+              <div className="text-xs font-semibold text-surface-600 dark:text-surface-300">{BASIS[b].label}</div>
+              <div className={`text-lg font-bold mt-0.5 ${v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                {t ? `₹${inr(v)}` : '—'}
+              </div>
+              <div className="text-[10px] text-surface-400 mt-0.5">{BASIS[b].plLabel}</div>
+            </button>
+          )
+        })}
       </div>
 
       {/* Board table */}
@@ -375,17 +430,17 @@ export default function EngineerPnl() {
                   <th className="text-right p-3 font-semibold text-primary-600 dark:text-primary-400">Total Closed<br/>P/M</th>
                   <th className="text-right p-3 font-semibold">Per Call<br/>Rate</th>
                   <th className="text-right p-3 font-semibold">Engg<br/>Salary</th>
-                  <th className="text-right p-3 font-semibold">1 Day<br/>Salary</th>
+                  <th className="text-right p-3 font-semibold whitespace-nowrap">{BASIS[basis].salaryLabel}</th>
                   <th className="text-right p-3 font-semibold">Total<br/>WD</th>
                   <th className="text-right p-3 font-semibold">Actual<br/>WD</th>
                   <th className="text-right p-3 font-semibold text-emerald-600 dark:text-emerald-400">Engg<br/>Earning</th>
-                  <th className="text-right p-3 font-semibold">Profit /<br/>Loss</th>
+                  <th className="text-right p-3 font-semibold" title={BASIS[basis].hint}>Profit / Loss<br/><span className="text-[10px] font-normal text-surface-400">{BASIS[basis].plLabel}</span></th>
                   <th className="text-right p-3 font-semibold"></th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const nett = parseFloat(r.nett)
+                  const nett = parseFloat(rowNett(r))
                   return (
                     <Fragment key={r.id}>
                     <tr className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30">
@@ -434,7 +489,7 @@ export default function EngineerPnl() {
                           </span>
                         ) : null}
                       </td>
-                      <td className="p-3 text-right text-surface-500 dark:text-surface-400">₹{inr(r.per_day)}</td>
+                      <td className="p-3 text-right text-surface-500 dark:text-surface-400">₹{inr(rowSalary(r))}</td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.total_working_days}</td>
                       <td className="p-3 text-right text-surface-500 dark:text-surface-400">{r.actual_working_days}</td>
                       <td className="p-3 text-right font-semibold text-emerald-600 dark:text-emerald-400">₹{inr(r.revenue)}</td>
@@ -473,7 +528,7 @@ export default function EngineerPnl() {
                     <td className="p-3 text-right text-primary-600 dark:text-primary-400">{inr(t.closed_calls)}</td>
                     <td colSpan={5}></td>
                     <td className="p-3 text-right text-emerald-600 dark:text-emerald-400">₹{inr(t.revenue)}</td>
-                    <td className={`p-3 text-right ${parseFloat(t.nett) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>₹{inr(t.nett)}</td>
+                    <td className={`p-3 text-right ${totNett >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>₹{inr(totNett)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
