@@ -52,7 +52,7 @@ api.interceptors.response.use(
 // ---------------------------------------------------------------------------
 // Auth API
 // ---------------------------------------------------------------------------
-export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice' | 'subscription' | 'insights' | 'collections'
+export type SectionKey = 'dashboard' | 'expenses' | 'pnl' | 'region' | 'invoice' | 'challan' | 'purchase' | 'porder' | 'receipt' | 'pettycash' | 'quote' | 'bos' | 'taxinvoice' | 'idfc' | 'bob' | 'engpnl' | 'sbinvoice' | 'subscription' | 'insights' | 'collections' | 'staffreq'
 
 export interface AuthUser {
   username: string
@@ -1646,3 +1646,51 @@ export const fetchCollectionsInvoices = (client: string) =>
   api
     .get<CollectionsInvoices>(`/collections/invoices/?client=${encodeURIComponent(client)}`)
     .then((r) => r.data)
+
+// ---------------------------------------------------------------------------
+// Staff Requests — what employees have asked the office for (from Payroll)
+// ---------------------------------------------------------------------------
+
+export type StaffRequestStatus = 'Pending' | 'Approved' | 'Rejected'
+
+export interface StaffRequest {
+  id: number
+  employee_name: string
+  branch: string
+  request_type: string
+  request_type_label: string
+  /** null for a report — it is raised to be read, not paid. */
+  amount: number | null
+  reason: string
+  status: StaffRequestStatus
+  reviewed_by: string
+  reviewed_at: string
+  created_at: string
+  message_count: number
+}
+
+export interface StaffRequestsData {
+  ok: boolean
+  message: string
+  count: number
+  summary: {
+    total_amount: string
+    pending_count: number
+    pending_amount: string
+    by_status: Record<StaffRequestStatus, { count: number; amount: string }>
+    employees: number
+  }
+  by_type: Array<{ request_type: string; label: string; count: number; amount: string }>
+  requests: StaffRequest[]
+  filters: { status: string; request_type: string; search: string }
+}
+
+/** Read-only: approving stays in Payroll, where the decision is recorded. */
+export const fetchStaffRequests = (params?: { status?: string; request_type?: string; search?: string }) => {
+  const p = new URLSearchParams()
+  if (params?.status) p.set('status', params.status)
+  if (params?.request_type) p.set('request_type', params.request_type)
+  if (params?.search) p.set('search', params.search)
+  const qs = p.toString()
+  return api.get<StaffRequestsData>(`/staff-requests/${qs ? `?${qs}` : ''}`).then((r) => r.data)
+}
