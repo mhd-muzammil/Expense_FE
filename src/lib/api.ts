@@ -1685,7 +1685,6 @@ export interface StaffRequestsData {
   filters: { status: string; request_type: string; search: string }
 }
 
-/** Read-only: approving stays in Payroll, where the decision is recorded. */
 export const fetchStaffRequests = (params?: { status?: string; request_type?: string; search?: string }) => {
   const p = new URLSearchParams()
   if (params?.status) p.set('status', params.status)
@@ -1694,3 +1693,16 @@ export const fetchStaffRequests = (params?: { status?: string; request_type?: st
   const qs = p.toString()
   return api.get<StaffRequestsData>(`/staff-requests/${qs ? `?${qs}` : ''}`).then((r) => r.data)
 }
+
+/**
+ * Approve or reject one request — by asking Payroll to do it.
+ *
+ * Nothing is decided on this side: Payroll sets the status, stamps the reviewer
+ * and posts the outcome into the request's own conversation, so the two systems
+ * can never disagree about who allowed what. A request that is no longer Pending
+ * is refused by Payroll, and its own sentence comes back in `detail`.
+ */
+export const decideStaffRequest = (id: number, action: 'approve' | 'reject', note?: string) =>
+  api
+    .post<{ ok: boolean; detail: string }>(`/staff-requests/${id}/decide/`, { action, note: note ?? '' })
+    .then((r) => r.data)

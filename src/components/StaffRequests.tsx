@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
-  HandCoins, Search, X, RefreshCw, MessageSquare, Clock, CheckCircle2, XCircle, Building2,
+  HandCoins, Search, X, RefreshCw, MessageSquare, Clock, CheckCircle2, XCircle, Building2, Loader2,
 } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
-import { fetchStaffRequests, type StaffRequestsData, type StaffRequestStatus } from '@/lib/api'
+import {
+  fetchStaffRequests, decideStaffRequest,
+  type StaffRequestsData, type StaffRequest, type StaffRequestStatus,
+} from '@/lib/api'
 
 const inr = (v: string | number | null | undefined) => {
   const n = typeof v === 'string' ? parseFloat(v) : (v ?? 0)
@@ -54,6 +57,8 @@ export default function StaffRequests() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<StaffRequestStatus | ''>('')
   const [type, setType] = useState('')
+  /** The request being decided, and which way — null when no dialog is open. */
+  const [deciding, setDeciding] = useState<null | { req: StaffRequest; action: 'approve' | 'reject' }>(null)
 
   const load = async (silent = false) => {
     if (silent) setRefreshing(true); else setLoading(true)
@@ -242,6 +247,7 @@ export default function StaffRequests() {
                   <th className="text-left p-3 font-semibold">Reason</th>
                   <th className="text-left p-3 font-semibold whitespace-nowrap">Status</th>
                   <th className="text-left p-3 font-semibold whitespace-nowrap">Raised</th>
+                  <th className="text-right p-3 font-semibold whitespace-nowrap">Decision</th>
                 </tr>
               </thead>
               <tbody>
@@ -283,6 +289,33 @@ export default function StaffRequests() {
                         )}
                       </td>
                       <td className="p-3 text-surface-500 dark:text-surface-400 whitespace-nowrap">{when(r.created_at)}</td>
+                      <td className="p-3 whitespace-nowrap">
+                        {r.status === 'Pending' ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setDeciding({ req: r, action: 'approve' })}
+                              title={`Approve ${r.employee_name}'s request in Payroll`}
+                              className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800/50"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                            </button>
+                            <button
+                              onClick={() => setDeciding({ req: r, action: 'reject' })}
+                              title={`Reject ${r.employee_name}'s request in Payroll`}
+                              className="inline-flex items-center gap-1 px-2.5 h-8 rounded-lg text-xs font-semibold bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800/50"
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Reject
+                            </button>
+                          </div>
+                        ) : (
+                          /* Payroll only decides a Pending request, so a decided one has
+                             no buttons rather than buttons that would be refused. */
+                          <div className="text-right text-[11px] text-surface-400">
+                            {r.status.toLowerCase()}
+                            {r.reviewed_at ? ` ${when(r.reviewed_at)}` : ''}
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -293,10 +326,128 @@ export default function StaffRequests() {
       </div>
 
       <p className="mt-4 text-xs text-surface-400">
-        Read-only. Approving or rejecting stays in the Payroll system, where the decision is recorded against the
-        person who made it — a second approve button here would leave the two systems disagreeing about who allowed
-        what.
+        Approving or rejecting here asks Payroll to record the decision — the status, the reviewer and the time are
+        written there, not copied, so the two systems always tell the same story. Payroll still refuses anything that
+        is no longer pending, so two people cannot decide the same request. Approval records a decision only: the
+        deduction stays HR&rsquo;s to enter on the employee record.
       </p>
+
+      {deciding && (
+        <DecideDialog
+          req={deciding.req}
+          action={deciding.action}
+          onClose={() => setDeciding(null)}
+          onDone={() => { setDeciding(null); load(true) }}
+          onToast={addToast}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * Confirms a decision and lets a reason be written with it.
+ *
+ * The note goes into the request's own conversation in Payroll, so the employee
+ * reads why alongside the outcome rather than seeing a status change on its own.
+ */
+function DecideDialog({ req, action, onClose, onDone, onToast }: {
+  req: StaffRequest
+  action: 'approve' | 'reject'
+  onClose: () => void
+  onDone: () => void
+  onToast: (t: 'success' | 'error', m: string) => void
+}) {
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const approving = action === 'approve'
+
+  const submit = async () => {
+    setBusy(true)
+    try {
+      const res = await decideStaffRequest(req.id, action, note)
+      onToast('success', res.detail || `Request ${action}d`)
+      onDone()
+    } catch (e) {
+      // Payroll refuses a request that is no longer pending, and says so in its
+      // own words; showing that beats a generic failure the reader cannot act on.
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      onToast('error', detail || `Could not ${action} this request`)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl bg-white dark:bg-surface-800 shadow-2xl border border-surface-100 dark:border-surface-700"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-100 dark:border-surface-700">
+          <h3 className="font-bold text-surface-900 dark:text-white">
+            {approving ? 'Approve' : 'Reject'} this request
+          </h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700">
+            <X className="w-4 h-4 text-surface-500" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="rounded-xl bg-surface-50 dark:bg-surface-900/50 border border-surface-100 dark:border-surface-700 px-4 py-3 text-sm">
+            <div className="font-semibold text-surface-900 dark:text-white">{req.employee_name}</div>
+            <div className="text-surface-500 dark:text-surface-400 mt-0.5">
+              {req.request_type_label}
+              {req.amount != null && <> &middot; <strong className="text-surface-800 dark:text-surface-100">&#8377;{inr(req.amount)}</strong></>}
+              {req.branch && <> &middot; {req.branch}</>}
+            </div>
+            {req.reason && <div className="text-surface-600 dark:text-surface-300 mt-2 whitespace-pre-wrap break-words">{req.reason}</div>}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-surface-500 dark:text-surface-400 mb-1">
+              Reason {approving ? '(optional)' : '(recommended)'}
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              placeholder={approving ? 'Anything the employee should know' : 'Why this is being turned down'}
+              className="w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 text-surface-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <p className="mt-1 text-[11px] text-surface-400">
+              This goes into the request&rsquo;s conversation in Payroll, so {req.employee_name || 'the employee'} reads
+              it with the outcome. Your name is recorded with it.
+            </p>
+          </div>
+
+          {approving && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              Approving records the decision only. The deduction is still HR&rsquo;s to enter on the employee record,
+              so nobody&rsquo;s pay changes from this.
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-surface-100 dark:border-surface-700">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="px-3 h-9 rounded-lg text-sm font-semibold bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className={`inline-flex items-center gap-1.5 px-4 h-9 rounded-lg text-sm font-semibold text-white disabled:opacity-60 ${
+              approving ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
+            }`}
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : approving ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+            {approving ? 'Approve' : 'Reject'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
