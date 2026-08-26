@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   HandCoins, Search, X, RefreshCw, MessageSquare, Clock, CheckCircle2, XCircle, Building2, Loader2,
 } from 'lucide-react'
@@ -51,6 +51,9 @@ const statusIcon: Record<StaffRequestStatus, typeof Clock> = {
 
 export default function StaffRequests() {
   const addToast = useExpenseStore((s) => s.addToast)
+  // Mirrors the server's gate. Offering a button the backend will refuse is worse
+  // than offering none.
+  const isAdmin = useExpenseStore((s) => !!s.user?.is_admin)
   const [data, setData] = useState<StaffRequestsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -60,14 +63,24 @@ export default function StaffRequests() {
   /** The request being decided, and which way — null when no dialog is open. */
   const [deciding, setDeciding] = useState<null | { req: StaffRequest; action: 'approve' | 'reject' }>(null)
 
+  /**
+   * Only the newest request may write the list.
+   *
+   * The reload after a decision and the debounced reload from a filter can be in
+   * flight together, and whichever answers last would otherwise win — showing rows
+   * for a filter no longer set, or a decided request still marked Pending.
+   */
+  const seq = useRef(0)
   const load = async (silent = false) => {
+    const mine = ++seq.current
     if (silent) setRefreshing(true); else setLoading(true)
     try {
-      setData(await fetchStaffRequests({ status, request_type: type, search }))
+      const res = await fetchStaffRequests({ status, request_type: type, search })
+      if (mine === seq.current) setData(res)
     } catch {
-      addToast('error', 'Failed to load staff requests')
+      if (mine === seq.current) addToast('error', 'Failed to load staff requests')
     } finally {
-      setLoading(false); setRefreshing(false)
+      if (mine === seq.current) { setLoading(false); setRefreshing(false) }
     }
   }
 
@@ -290,7 +303,7 @@ export default function StaffRequests() {
                       </td>
                       <td className="p-3 text-surface-500 dark:text-surface-400 whitespace-nowrap">{when(r.created_at)}</td>
                       <td className="p-3 whitespace-nowrap">
-                        {r.status === 'Pending' ? (
+                        {r.status === 'Pending' && isAdmin ? (
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => setDeciding({ req: r, action: 'approve' })}
@@ -311,8 +324,9 @@ export default function StaffRequests() {
                           /* Payroll only decides a Pending request, so a decided one has
                              no buttons rather than buttons that would be refused. */
                           <div className="text-right text-[11px] text-surface-400">
-                            {r.status.toLowerCase()}
-                            {r.reviewed_at ? ` ${when(r.reviewed_at)}` : ''}
+                            {r.status === 'Pending'
+                              ? 'an admin decides this'
+                              : `${r.status.toLowerCase()}${r.reviewed_at ? ` ${when(r.reviewed_at)}` : ''}`}
                           </div>
                         )}
                       </td>
@@ -326,7 +340,7 @@ export default function StaffRequests() {
       </div>
 
       <p className="mt-4 text-xs text-surface-400">
-        Approving or rejecting here asks Payroll to record the decision — the status, the reviewer and the time are
+        Only an administrator can approve or reject. Doing so asks Payroll to record the decision — the status, the reviewer and the time are
         written there, not copied, so the two systems always tell the same story. Payroll still refuses anything that
         is no longer pending, so two people cannot decide the same request. Approval records a decision only: the
         deduction stays HR&rsquo;s to enter on the employee record.
@@ -377,8 +391,13 @@ function DecideDialog({ req, action, onClose, onDone, onToast }: {
     }
   }
 
+  // Dismissing while the write is in flight would leave the POST running with the
+  // row still reading Pending, so the same request could be decided a second time —
+  // and Payroll checks the status before it saves, so both writes can land.
+  const close = () => { if (!busy) onClose() }
+
   return (
-    <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={close}>
       <div
         className="w-full max-w-md rounded-2xl bg-white dark:bg-surface-800 shadow-2xl border border-surface-100 dark:border-surface-700"
         onClick={(e) => e.stopPropagation()}
@@ -387,7 +406,7 @@ function DecideDialog({ req, action, onClose, onDone, onToast }: {
           <h3 className="font-bold text-surface-900 dark:text-white">
             {approving ? 'Approve' : 'Reject'} this request
           </h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700">
+          <button onClick={close} disabled={busy} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 disabled:opacity-40">
             <X className="w-4 h-4 text-surface-500" />
           </button>
         </div>
@@ -430,7 +449,7 @@ function DecideDialog({ req, action, onClose, onDone, onToast }: {
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-surface-100 dark:border-surface-700">
           <button
-            onClick={onClose}
+            onClick={close}
             disabled={busy}
             className="px-3 h-9 rounded-lg text-sm font-semibold bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-50 disabled:opacity-60"
           >
