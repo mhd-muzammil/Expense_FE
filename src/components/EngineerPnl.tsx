@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
-  Cpu, Plus, RefreshCw, Trash2, Pencil, X, Loader2, TrendingUp, TrendingDown, Wifi, WifiOff, UserPlus, IndianRupee, Search, ChevronDown, ChevronRight,
+  Cpu, Plus, RefreshCw, Trash2, Pencil, X, Loader2, TrendingUp, TrendingDown, Wifi, WifiOff, UserPlus, IndianRupee, Search, ChevronDown, ChevronRight, Filter, Download,
 } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import {
@@ -15,6 +15,8 @@ const inr = (v: string | number | null | undefined) => {
   return (n as number).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 }
 const currentDay = () => new Date().toISOString().slice(0, 10)
+/** The column-filter option for engineers with no value in that column, as Excel names it. */
+const BLANK = '(Blanks)'
 
 /**
  * The quick periods above the board. Each one sets the date range rather than a
@@ -171,7 +173,59 @@ export default function EngineerPnl() {
     const hay = [r.engineer_name, ...(f?.locations ?? []), ...(f?.segments ?? [])].join(' ').toLowerCase()
     return terms.every((term) => hay.includes(term))
   }
-  const rows = terms.length ? allRows.filter(rowMatches) : allRows
+  // Excel-style column filters on Work Location / Segment. null = no filter (all ticked).
+  // A row passes if ANY of its values is ticked — an engineer who worked Salem and
+  // Hosur shows under either — and BLANK picks the rows with no calls in the window.
+  const facetsOf = (r: EngineerPnlRow) => callFacets[r.engineer_name.trim().toLowerCase()]
+  const [locFilter, setLocFilter] = useState<Set<string> | null>(null)
+  const [segFilter, setSegFilter] = useState<Set<string> | null>(null)
+  const facetPasses = (sel: Set<string> | null, values: string[] | undefined) => {
+    if (!sel) return true
+    if (!values?.length) return sel.has(BLANK)
+    return values.some((v) => sel.has(v))
+  }
+  const optionsOf = (pick: (f: { locations: string[]; segments: string[] }) => string[]) => {
+    const all = new Set<string>()
+    let blank = false
+    for (const r of allRows) {
+      const f = facetsOf(r)
+      const v = f ? pick(f) : []
+      if (v.length) v.forEach((x) => all.add(x)); else blank = true
+    }
+    return [...[...all].sort((a, b) => a.localeCompare(b)), ...(blank ? [BLANK] : [])]
+  }
+  const locOptions = optionsOf((f) => f.locations)
+  const segOptions = optionsOf((f) => f.segments)
+  const filtering = terms.length > 0 || !!locFilter || !!segFilter
+  const rows = filtering
+    ? allRows.filter((r) => rowMatches(r)
+        && facetPasses(locFilter, facetsOf(r)?.locations)
+        && facetPasses(segFilter, facetsOf(r)?.segments))
+    : allRows
+  const clearFilters = () => { setSearch(''); setLocFilter(null); setSegFilter(null) }
+
+  // Exports what is on screen: filtered rows when a filter/search is on, else the full board.
+  const [exporting, setExporting] = useState(false)
+  const exportXlsx = async () => {
+    setExporting(true)
+    try {
+      const { exportEngineerPnl } = await import('@/lib/engineerPnlExport')
+      const filters = [
+        ...(search.trim() ? [`Search: "${search.trim()}"`] : []),
+        ...(locFilter ? [`Work Location: ${[...locFilter].join(', ')}`] : []),
+        ...(segFilter ? [`Segment: ${[...segFilter].join(', ')}`] : []),
+      ]
+      await exportEngineerPnl({
+        rows, facets: facetsOf, from: fromDate || currentDay(), to: toDate || currentDay(),
+        days: board?.period_days ?? 1, filters,
+      })
+      addToast('success', filters.length ? `Exported ${rows.length} filtered engineers` : `Exported full report (${rows.length} engineers)`)
+    } catch {
+      addToast('error', 'Export failed')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // With a search on, the footer must add up what is actually on screen — a total
   // that counts hidden rows would quietly contradict the rows above it. With no
@@ -199,7 +253,7 @@ export default function EngineerPnl() {
   // Anything that changes which calls a row covers invalidates what was fetched.
   useEffect(() => { setRowCalls({}); setExpanded(null) }, [fromDate, toDate])
 
-  const t = terms.length
+  const t = filtering
     ? {
         engg_count: sum((r) => r.engg_count),
         closed_calls: sum((r) => r.total_calls_closed_pm),
@@ -304,6 +358,12 @@ export default function EngineerPnl() {
               className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 disabled:opacity-60">
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
             </button>
+            <button onClick={exportXlsx} disabled={exporting || !board || rows.length === 0}
+              title={filtering ? `Export the ${rows.length} filtered engineers to Excel` : 'Export the full report to Excel'}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-semibold bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-surface-700 dark:text-surface-300 hover:bg-surface-50 disabled:opacity-60">
+              {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {filtering ? `Export (${rows.length})` : 'Export'}
+            </button>
             <button onClick={() => openAdd()}
               className="flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-semibold bg-primary-600 hover:bg-primary-700 text-white">
               <Plus className="w-4 h-4" /> Add Engineer
@@ -362,7 +422,7 @@ export default function EngineerPnl() {
         {/* Counts the rows on screen, like the three tiles beside it — a search that
             narrowed the table but left this at the full count would misread as a total. */}
         <Tile
-          label={terms.length ? `Engineers (of ${allRows.length})` : 'Engineers'}
+          label={filtering ? `Engineers (of ${allRows.length})` : 'Engineers'}
           value={board ? String(rows.length) : '—'}
         />
         <Tile label="Closed Calls (P/M)" value={t ? inr(t.closed_calls) : '—'} accent="text-primary-600 dark:text-primary-400" />
@@ -426,29 +486,38 @@ export default function EngineerPnl() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Search className="w-12 h-12 text-surface-300 dark:text-surface-600 mb-3" />
             <p className="text-surface-500 dark:text-surface-400 font-medium">
-              No engineer matches “{search}”
+              {search ? <>No engineer matches “{search}”</> : 'No engineer matches these filters'}
             </p>
             <p className="mt-1 text-xs text-surface-400">
               Work location and segment come from the closed calls in this period, so an engineer with no calls
               here can only be found by name.
             </p>
-            <button onClick={() => setSearch('')} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">
-              Clear search →
+            <button onClick={clearFilters} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">
+              Clear all filters →
             </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            {terms.length > 0 && (
-              <div className="px-3 pt-3 text-xs text-surface-500 dark:text-surface-400">
-                Showing <strong className="text-surface-700 dark:text-surface-200">{rows.length}</strong> of {allRows.length} engineers — totals below are for these {rows.length}.
+            {filtering && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 pt-3 text-xs text-surface-500 dark:text-surface-400">
+                <span>
+                  Showing <strong className="text-surface-700 dark:text-surface-200">{rows.length}</strong> of {allRows.length} engineers — totals are for these {rows.length}.
+                </span>
+                {locFilter && <FilterChip label="Location" sel={locFilter} onClear={() => setLocFilter(null)} />}
+                {segFilter && <FilterChip label="Segment" sel={segFilter} onClear={() => setSegFilter(null)} />}
+                <button onClick={clearFilters} className="font-semibold text-primary-600 hover:text-primary-700">Clear all</button>
               </div>
             )}
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700 text-surface-600 dark:text-surface-400">
                   <th className="text-left p-3 font-semibold">Engineer</th>
-                  <th className="text-left p-3 font-semibold">Work<br/>Location</th>
-                  <th className="text-left p-3 font-semibold">Segment</th>
+                  <th className="text-left p-3 font-semibold">
+                    <ColumnFilter label={<>Work<br/>Location</>} title="Work Location" options={locOptions} value={locFilter} onChange={setLocFilter} />
+                  </th>
+                  <th className="text-left p-3 font-semibold">
+                    <ColumnFilter label="Segment" title="Segment" options={segOptions} value={segFilter} onChange={setSegFilter} />
+                  </th>
                   <th className="text-right p-3 font-semibold">Per Day<br/>Target</th>
                   <th className="text-right p-3 font-semibold">Closed<br/>P/D</th>
                   <th className="text-right p-3 font-semibold text-primary-600 dark:text-primary-400">Total Closed<br/>P/M</th>
@@ -589,6 +658,155 @@ export default function EngineerPnl() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * An Excel-style filter on a column header: a funnel that opens a checklist of the
+ * column's values with Search and Select All, applied on OK. `value` null means no
+ * filter. The panel is position:fixed because the table scrolls sideways and would
+ * clip anything positioned inside it; it closes on scroll so it cannot drift.
+ */
+function ColumnFilter({ label, title, options, value, onChange }: {
+  label: ReactNode
+  title: string
+  options: string[]
+  value: Set<string> | null
+  onChange: (v: Set<string> | null) => void
+}) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [draft, setDraft] = useState<Set<string>>(new Set())
+  const [q, setQ] = useState('')
+  const btn = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
+
+  const open = () => {
+    const r = btn.current!.getBoundingClientRect()
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - 272)) })
+    setDraft(new Set(value ?? options))
+    setQ('')
+  }
+  const close = () => setPos(null)
+
+  useEffect(() => {
+    if (!pos) return
+    const onDown = (e: MouseEvent) => {
+      if (!panel.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) close()
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [pos])
+
+  const shown = q ? options.filter((o) => o.toLowerCase().includes(q.toLowerCase())) : options
+  const allShownOn = shown.length > 0 && shown.every((o) => draft.has(o))
+  const toggle = (o: string) => setDraft((d) => { const n = new Set(d); if (n.has(o)) n.delete(o); else n.add(o); return n })
+  const toggleAll = () => setDraft((d) => {
+    const n = new Set(d)
+    shown.forEach((o) => (allShownOn ? n.delete(o) : n.add(o)))
+    return n
+  })
+  const apply = () => {
+    // Like Excel's search box: OK with a search typed keeps only the matching ticks.
+    const picked = q ? new Set(shown.filter((o) => draft.has(o))) : draft
+    onChange(options.every((o) => picked.has(o)) ? null : picked)
+    close()
+  }
+  const active = !!value
+
+  return (
+    <div className="inline-flex items-center gap-1">
+      <span>{label}</span>
+      <button
+        ref={btn}
+        onClick={() => (pos ? close() : open())}
+        title={active ? `${title}: ${[...value!].join(', ')}` : `Filter by ${title}`}
+        className={`p-1 rounded-md transition-colors ${active
+          ? 'bg-primary-600 text-white'
+          : 'text-surface-400 hover:text-primary-600 hover:bg-surface-100 dark:hover:bg-surface-700'}`}
+      >
+        <Filter className="w-3.5 h-3.5" />
+      </button>
+      {pos && (
+        <div
+          ref={panel}
+          style={{ top: pos.top, left: pos.left }}
+          className="fixed z-50 w-64 rounded-xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 shadow-xl text-sm font-normal text-surface-700 dark:text-surface-200 whitespace-normal"
+        >
+          <div className="p-2 border-b border-surface-100 dark:border-surface-700">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-surface-400 pointer-events-none" />
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') apply() }}
+                placeholder={`Search ${title.toLowerCase()}`}
+                className="h-8 w-full pl-7 pr-2 rounded-lg text-sm bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            {shown.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-surface-400">No matches</div>
+            ) : (
+              <>
+                <label className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-700/50 font-semibold">
+                  <input type="checkbox" checked={allShownOn} onChange={toggleAll} className="accent-primary-600" />
+                  {q ? '(Select All Search Results)' : '(Select All)'}
+                </label>
+                {shown.map((o) => (
+                  <label key={o} className="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-700/50">
+                    <input type="checkbox" checked={draft.has(o)} onChange={() => toggle(o)} className="accent-primary-600" />
+                    <span className={o === BLANK ? 'italic text-surface-400' : ''}>{o}</span>
+                  </label>
+                ))}
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2 p-2 border-t border-surface-100 dark:border-surface-700">
+            <button
+              onClick={() => { onChange(null); close() }}
+              disabled={!active}
+              className="mr-auto text-xs font-semibold text-primary-600 hover:text-primary-700 disabled:text-surface-300 dark:disabled:text-surface-600"
+            >
+              Clear filter
+            </button>
+            <button onClick={close} className="h-8 px-3 rounded-lg text-xs font-semibold border border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-700">
+              Cancel
+            </button>
+            <button
+              onClick={apply}
+              disabled={draft.size === 0}
+              className="h-8 px-4 rounded-lg text-xs font-semibold bg-primary-600 hover:bg-primary-700 text-white disabled:opacity-50"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** A removable "Location: Salem, Hosur" chip summarising an active column filter. */
+function FilterChip({ label, sel, onClear }: { label: string; sel: Set<string>; onClear: () => void }) {
+  const list = [...sel]
+  return (
+    <span className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 font-semibold">
+      {label}: {list.slice(0, 3).join(', ')}{list.length > 3 ? ` +${list.length - 3}` : ''}
+      <button onClick={onClear} title={`Clear ${label} filter`} className="p-0.5 rounded-full hover:bg-primary-100 dark:hover:bg-primary-800/50">
+        <X className="w-3 h-3" />
+      </button>
+    </span>
   )
 }
 
