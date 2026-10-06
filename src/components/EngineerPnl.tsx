@@ -179,6 +179,7 @@ export default function EngineerPnl() {
   const facetsOf = (r: EngineerPnlRow) => callFacets[r.engineer_name.trim().toLowerCase()]
   const [locFilter, setLocFilter] = useState<Set<string> | null>(null)
   const [segFilter, setSegFilter] = useState<Set<string> | null>(null)
+  const [engFilter, setEngFilter] = useState<Set<string> | null>(null)
   const facetPasses = (sel: Set<string> | null, values: string[] | undefined) => {
     if (!sel) return true
     if (!values?.length) return sel.has(BLANK)
@@ -196,13 +197,15 @@ export default function EngineerPnl() {
   }
   const locOptions = optionsOf((f) => f.locations)
   const segOptions = optionsOf((f) => f.segments)
-  const filtering = terms.length > 0 || !!locFilter || !!segFilter
+  const engOptions = [...new Set(allRows.map((r) => r.engineer_name))].sort((a, b) => a.localeCompare(b))
+  const filtering = terms.length > 0 || !!engFilter || !!locFilter || !!segFilter
   const rows = filtering
     ? allRows.filter((r) => rowMatches(r)
+        && (!engFilter || engFilter.has(r.engineer_name))
         && facetPasses(locFilter, facetsOf(r)?.locations)
         && facetPasses(segFilter, facetsOf(r)?.segments))
     : allRows
-  const clearFilters = () => { setSearch(''); setLocFilter(null); setSegFilter(null) }
+  const clearFilters = () => { setSearch(''); setEngFilter(null); setLocFilter(null); setSegFilter(null) }
 
   // Exports what is on screen: filtered rows when a filter/search is on, else the full board.
   const [exporting, setExporting] = useState(false)
@@ -212,6 +215,7 @@ export default function EngineerPnl() {
       const { exportEngineerPnl } = await import('@/lib/engineerPnlExport')
       const filters = [
         ...(search.trim() ? [`Search: "${search.trim()}"`] : []),
+        ...(engFilter ? [`Engineer: ${[...engFilter].join(', ')}`] : []),
         ...(locFilter ? [`Work Location: ${[...locFilter].join(', ')}`] : []),
         ...(segFilter ? [`Segment: ${[...segFilter].join(', ')}`] : []),
       ]
@@ -503,6 +507,7 @@ export default function EngineerPnl() {
                 <span>
                   Showing <strong className="text-surface-700 dark:text-surface-200">{rows.length}</strong> of {allRows.length} engineers — totals are for these {rows.length}.
                 </span>
+                {engFilter && <FilterChip label="Engineer" sel={engFilter} onClear={() => setEngFilter(null)} />}
                 {locFilter && <FilterChip label="Location" sel={locFilter} onClear={() => setLocFilter(null)} />}
                 {segFilter && <FilterChip label="Segment" sel={segFilter} onClear={() => setSegFilter(null)} />}
                 <button onClick={clearFilters} className="font-semibold text-primary-600 hover:text-primary-700">Clear all</button>
@@ -511,7 +516,9 @@ export default function EngineerPnl() {
             <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="bg-surface-50 dark:bg-surface-900/50 border-b border-surface-100 dark:border-surface-700 text-surface-600 dark:text-surface-400">
-                  <th className="text-left p-3 font-semibold">Engineer</th>
+                  <th className="text-left p-3 font-semibold">
+                    <ColumnFilter label="Engineer" title="Engineer" options={engOptions} value={engFilter} onChange={setEngFilter} />
+                  </th>
                   <th className="text-left p-3 font-semibold">
                     <ColumnFilter label={<>Work<br/>Location</>} title="Work Location" options={locOptions} value={locFilter} onChange={setLocFilter} />
                   </th>
