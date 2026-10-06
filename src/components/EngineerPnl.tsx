@@ -672,7 +672,7 @@ export default function EngineerPnl() {
  * An Excel-style filter on a column header: a funnel that opens a checklist of the
  * column's values with Search and Select All, applied on OK. `value` null means no
  * filter. The panel is position:fixed because the table scrolls sideways and would
- * clip anything positioned inside it; it closes on scroll so it cannot drift.
+ * clip anything positioned inside it; it follows its button when the page scrolls.
  */
 function ColumnFilter({ label, title, options, value, onChange }: {
   label: ReactNode
@@ -687,31 +687,41 @@ function ColumnFilter({ label, title, options, value, onChange }: {
   const btn = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
 
-  const open = () => {
+  const place = () => {
     const r = btn.current!.getBoundingClientRect()
     setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - 272)) })
+  }
+  const open = () => {
+    place()
     setDraft(new Set(value ?? options))
     setQ('')
   }
   const close = () => setPos(null)
 
+  const isOpen = !!pos
   useEffect(() => {
-    if (!pos) return
+    if (!isOpen) return
     const onDown = (e: MouseEvent) => {
       if (!panel.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) close()
     }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    // Scrolling the panel's own list must not touch it; scrolling the page or the
+    // table moves the panel along with its button instead of closing it.
+    const onScroll = (e: Event) => {
+      if (panel.current?.contains(e.target as Node)) return
+      place()
+    }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
-    window.addEventListener('scroll', close, true)
-    window.addEventListener('resize', close)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', place)
     return () => {
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
-      window.removeEventListener('scroll', close, true)
-      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', place)
     }
-  }, [pos])
+  }, [isOpen])
 
   const shown = q ? options.filter((o) => o.toLowerCase().includes(q.toLowerCase())) : options
   const allShownOn = shown.length > 0 && shown.every((o) => draft.has(o))
@@ -761,7 +771,7 @@ function ColumnFilter({ label, title, options, value, onChange }: {
               />
             </div>
           </div>
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="max-h-64 overflow-y-auto overscroll-contain py-1">
             {shown.length === 0 ? (
               <div className="px-3 py-2 text-xs text-surface-400">No matches</div>
             ) : (
