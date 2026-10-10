@@ -34,13 +34,17 @@ export async function exportEngineerPnl(opts: {
     { header: 'Closed P/D', width: 10 },
     { header: 'Total Closed P/M', width: 12 },
     { header: 'Per Call Rate', width: 12, money: true },
+    { header: 'Raw Data Rate', width: 12, money: true },
     { header: 'Engg Salary', width: 14, money: true },
     { header: 'Salary Source', width: 11 },
     { header: `Salary (${daysLabel})`, width: 14, money: true },
     { header: 'Total WD', width: 9 },
     { header: 'Actual WD', width: 9 },
+    { header: 'WD Source', width: 10 },
     { header: 'Engg Earning', width: 14, money: true },
     { header: `Profit / Loss (${daysLabel})`, width: 16, money: true },
+    { header: 'Raw Earning', width: 14, money: true },
+    { header: `Raw P/L (${daysLabel})`, width: 16, money: true },
   ]
   const lastCol = cols.length
 
@@ -76,13 +80,17 @@ export async function exportEngineerPnl(opts: {
       num(r.actual_closed_pd),
       r.total_calls_closed_pm,
       num(r.per_call_rate),
+      num(r.raw_rate),
       num(r.engg_salary),
       r.salary_source === 'payroll' ? 'Payroll' : 'Manual',
       num(r.window_salary ?? r.per_day),
       r.total_working_days,
       r.actual_working_days,
+      r.working_days_source === 'payroll' ? 'Payroll' : 'Manual',
       num(r.revenue),
       num(r.nett),
+      num(r.raw_earning),
+      num(r.raw_profit_loss),
     ]
     cols.forEach((c, j) => { if (c.money) row.getCell(j + 1).numFmt = moneyFmt })
   })
@@ -93,7 +101,7 @@ export async function exportEngineerPnl(opts: {
   const total = ws.getRow(last + 1)
   total.getCell(1).value = `Total (${rows.length})`
   if (rows.length) {
-    for (const c of [6, 10, 13, 14]) {
+    for (const c of [6, 11, 15, 16, 17, 18]) {
       const L = ws.getColumn(c).letter
       total.getCell(c).value = { formula: `SUM(${L}${first}:${L}${last})` }
       if (cols[c - 1].money) total.getCell(c).numFmt = moneyFmt

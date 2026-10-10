@@ -1296,9 +1296,24 @@ export interface EngineerPnlRow {
   per_day_target: number
   per_call_rate: string
   engg_salary: string
+  /** Window's working days (less Sundays) from Payroll, else the configured figure. */
   total_working_days: number
+  /** Days present in the window from Payroll attendance, else the configured figure. */
   actual_working_days: number
+  working_days_source: 'payroll' | 'manual'
+  /** The engineer's own configured working days — what the edit form saves. */
+  manual_total_working_days: number
+  manual_actual_working_days: number
   salary_source: 'payroll' | 'manual'
+  /** Average HP raw-data value per closed call in the window. */
+  raw_rate: string
+  /** The window's closed calls priced from HP raw data. */
+  raw_earning: string
+  /** raw_earning minus the same window salary as Profit / Loss. */
+  raw_profit_loss: string
+  raw_actual_calls: number
+  raw_rejected_calls: number
+  raw_estimated_calls: number
   /** Days in the window being viewed — what the salary below is charged for. */
   period_days: number
   /** Length of the salary cycle (25th→24th) the window sits in: 28–31 days. */
@@ -1340,8 +1355,62 @@ export interface EngineerPnlBoard {
   total_configured: number
   meta: Record<string, unknown>
   rows: EngineerPnlRow[]
-  totals: { engg_count: number; closed_calls: number; revenue: string; total_engg_salary: string; nett: string; window_salary: string }
+  totals: {
+    engg_count: number; closed_calls: number; revenue: string; total_engg_salary: string; nett: string; window_salary: string
+    raw_revenue?: string; raw_nett?: string
+  }
   unmatched_engineers: Array<{ engineer_name: string; closed_calls: number }>
+  working_days_ok: boolean | null
+  working_days_message: string
+  working_days_total: number | null
+  raw_ok: boolean
+  raw_message: string
+  raw_status: RawDataStatus | null
+  /** Every closed call in the window, all engineers, priced and grouped by region. */
+  regions: RegionValue[]
+  region_totals: Partial<RegionValue>
+}
+
+/** One region's closed calls priced from HP raw data. */
+export interface RegionValue {
+  region: string
+  calls: number
+  value: string
+  actual: number
+  rejected: number
+  estimated: number
+  actual_value: string
+  estimated_value: string
+  /** Who closed the region's calls, with that region's value only. */
+  engineers?: Array<{ engineer_name: string; calls: number; value: string }>
+}
+
+export interface RawDataStatus {
+  count: number
+  closed_from: string | null
+  closed_to: string | null
+  last_import: string | null
+}
+
+export interface RegionCycle {
+  label: string
+  from: string
+  to: string
+  current: boolean
+  regions: RegionValue[]
+  total: RegionValue
+}
+
+export const fetchRegionHistory = (cycles = 6) =>
+  api.get<{ ok: boolean; message: string; cycles: RegionCycle[] }>(`/engineer-pnl/region-history/?cycles=${cycles}`)
+    .then(res => res.data)
+
+export const uploadFlexRawData = (file: File) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post<{ rows: number; created: number; updated: number; skipped: number; status: RawDataStatus }>(
+    '/engineer-pnl/raw-data/', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000 },
+  ).then(res => res.data)
 }
 
 export const fetchEngineerPnls = () =>
@@ -1375,6 +1444,11 @@ export interface EngineerClosedCall {
   work_location_name: string
   wo_otc_code: string
   region_code: string
+  /** What HP paid (actual), would pay (estimated) or refused (rejected) for this call. */
+  raw_value?: string
+  raw_source?: 'actual' | 'rejected' | 'estimated'
+  raw_basis?: string
+  region?: string
   /**
    * The engineer's canonical name — what the board calls them. `engineer` is the raw
    * report text, which differs for an aliased name, so group on this one.
