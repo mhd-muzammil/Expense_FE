@@ -502,7 +502,7 @@ export default function EngineerPnl() {
         <StatCard
           label={`Salary cost · ${daysLabel}`}
           value={t ? rs(totSalary) : '—'}
-          sub="each salary spread over its 25th–24th cycle"
+          sub="what each engineer earns for the days paid"
         />
         <StatCard
           label="Profit at flat rate"
@@ -604,7 +604,7 @@ export default function EngineerPnl() {
                   <SubTh title="Days the engineer was present (Payroll attendance)">Present</SubTh>
                   <SubTh first title="Monthly salary (from Payroll)">Monthly</SubTh>
                   <SubTh title={`Monthly salary ÷ ${cycleDays} days in this salary cycle${multiDay ? '' : '. Both Profit columns subtract this.'}`}>Per day</SubTh>
-                  {multiDay && <SubTh title={isFullCycle ? 'A full salary cycle — the whole monthly salary' : `Per-day salary × ${daysLabel}. Both Profit columns subtract this.`}>For {daysLabel}</SubTh>}
+                  {multiDay && <SubTh title={`What the engineer earns for these ${daysLabel}: per-day salary × paid days. Sundays are paid; working days they missed are cut. Both Profit columns subtract this.`}>Earned</SubTh>}
                   <SubTh first title="Calls closed × the engineer's per-call rate (₹420 by default)">Earning</SubTh>
                   <SubTh title="Flat-rate earning minus salary for the period">Profit</SubTh>
                   <SubTh first accent title="Average HP payment per call: exact amount where the call is in HP's data, else the same product's recent price">Avg / call</SubTh>
@@ -648,7 +648,17 @@ export default function EngineerPnl() {
                           <Sourced from={r.salary_source === 'payroll' ? 'payroll' : board?.payroll_ok ? 'manual' : undefined}>{rs(r.engg_salary)}</Sourced>
                         </td>
                         <td className={`${TD} text-surface-600 dark:text-surface-300`} title={`${rs(r.engg_salary)} ÷ ${cycleDays} days`}>{rs(r.daily_rate ?? r.per_day)}</td>
-                        {multiDay && <td className={`${TD} text-surface-700 dark:text-surface-200`} title={`${rs(r.daily_rate ?? r.per_day)} a day × ${daysLabel}`}>{rs(r.window_salary ?? r.per_day)}</td>}
+                        {multiDay && (
+                          <td className={`${TD} text-surface-700 dark:text-surface-200`}
+                            title={`${rs(r.daily_rate ?? r.per_day)} a day × ${r.paid_days ?? days} paid days`
+                              + ((r.absent_days ?? 0) > 0 ? ` (${days} days − ${r.absent_days} working day${r.absent_days === 1 ? '' : 's'} missed)` : '')
+                              + (r.working_days_source === 'payroll' ? '' : ' — no Payroll attendance, so every day is counted')}>
+                            {rs(r.window_salary ?? r.per_day)}
+                            <div className={`text-[10px] font-normal ${(r.absent_days ?? 0) > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-surface-400'}`}>
+                              {(r.absent_days ?? 0) > 0 ? `${r.paid_days} of ${days} days · ${r.absent_days} missed` : `${r.paid_days ?? days} of ${days} days`}
+                            </div>
+                          </td>
+                        )}
                         <td className={`${TD} ${G1} text-surface-700 dark:text-surface-200`} title={`${r.total_calls_closed_pm} calls × ₹${inr(r.per_call_rate)}`}>
                           {rs(r.revenue)}
                           {parseFloat(r.per_call_rate) !== 420 && <div className="text-[10px] text-surface-400">₹{inr(r.per_call_rate)} / call</div>}
@@ -1523,7 +1533,7 @@ function HowItWorks() {
             ['Attendance: Present', 'Days Payroll attendance marks the engineer Present, Late or Overtime. Leave and Absent do not count; a Sunday they actually worked does. Avg / day = calls closed ÷ days present.'],
             ['Salary: Monthly', 'The engineer’s full monthly salary from Payroll. A teal dot means it came from Payroll; amber means it was typed in here because the engineer is not linked yet.'],
             ['Salary: Per day', 'Monthly salary ÷ days in that salary cycle (25th–24th, 28–31 days). ₹24,000 over a 30-day cycle is ₹800 a day.'],
-            ['Salary: For N days', 'Per-day salary × the days chosen at the top, which is what both Profit columns subtract. With ₹800 a day: Today = ₹800, This Week = ₹5,600, a full cycle = ₹24,000.'],
+            ['Salary: Earned', 'Per-day salary × paid days, which is what both Profit columns subtract. Every day is paid, Sundays included, except working days the engineer missed (only days already over count). Example: ₹26,207 over a 31-day cycle is ₹845 a day; 26 working days, present 24, so 2 are cut: ₹845 × 29 = ₹24,517.'],
             ['Flat rate profit', 'Closed calls × ₹420 (or the rate set for that engineer), minus the salary for the period.'],
             ['HP raw data profit', 'Each call priced at what HP pays for it, minus the same salary. This is the closer-to-real figure.'],
             ['Exact vs estimated', 'A call already in HP\'s raw data gets the exact amount HP paid. Newer calls (HP sends each cycle\'s data on the 17th of the next month) use what HP paid for the same product over its last 3 months, and become exact once that data is uploaded.'],

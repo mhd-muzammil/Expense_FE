@@ -1322,6 +1322,10 @@ export interface EngineerPnlRow {
   daily_rate: string
   /** Salary owed for THIS window: the one-day rate times period_days. */
   window_salary: string
+  /** Days paid in the window: every day less working days missed (Payroll attendance). */
+  paid_days?: number
+  /** Working days missed so far in the window. */
+  absent_days?: number
   closed_calls: number
   actual_closed_pd: string
   total_calls_closed_pm: number

@@ -37,7 +37,7 @@ export async function exportEngineerPnl(opts: {
     { header: 'Raw Data Rate', width: 12, money: true },
     { header: 'Engg Salary', width: 14, money: true },
     { header: 'Salary Source', width: 11 },
-    { header: `Salary (${daysLabel})`, width: 14, money: true },
+    { header: `Salary earned (${daysLabel})`, width: 14, money: true },
     { header: 'Total WD', width: 9 },
     { header: 'Actual WD', width: 9 },
     { header: 'WD Source', width: 10 },
