@@ -312,6 +312,24 @@ export default function EngineerPnl() {
   // On a one-day view the period's salary IS the per-day salary, so that column
   // would only repeat the one beside it.
   const multiDay = days > 1
+  // Salary (and calls) are only counted up to today; a window reaching past it
+  // is "partial", and the table says so rather than look like a full month.
+  const chargedTo = board?.charged_to ?? null
+  const partial = !!board && (board.charged_days ?? days) < days
+  const earnedWhy = (r: EngineerPnlRow) => {
+    const rate = `${rs(r.daily_rate ?? r.per_day)} a day`
+    if (r.salary_basis === 'payslip') return `From the payslip Payroll generated for this cycle: ${rs(r.window_salary)} (salary earned + casual leave + special work).`
+    if (r.working_days_source !== 'payroll') return `${rate} × ${r.charged_days ?? days} days. Not linked to Payroll, so no absences are deducted.`
+    const parts = [`${rate} × ${r.paid_days} paid days`]
+    if ((r.absent_marked ?? 0) > 0) {
+      parts.push(`${r.absent_marked} day${r.absent_marked === 1 ? '' : 's'} marked Absent`
+        + ((r.casual_leave_days ?? 0) > 0 ? `, ${r.casual_leave_days} covered by casual leave` : '')
+        + ` → ${r.absent_days} unpaid`)
+    } else {
+      parts.push('no days marked Absent')
+    }
+    return parts.join('. ') + '. Sundays and Leave days are paid, as on the payslip.'
+  }
 
   // Which quick period the dates match, if any; anything else is a custom range.
   const [mode, setMode] = useState<'today' | 'week' | 'cycle' | 'custom'>('today')
@@ -410,6 +428,12 @@ export default function EngineerPnl() {
             <div className="text-sm">
               <span className="font-semibold text-surface-800 dark:text-surface-100">{fmtRange(fromDate || currentDay(), toDate || currentDay())}</span>
               <span className="text-surface-400"> · {daysLabel}{isFullCycle ? ' · full salary cycle' : ''}</span>
+              {partial && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-primary-50 dark:bg-primary-900/30 px-2 py-0.5 text-[11px] font-semibold text-primary-700 dark:text-primary-300"
+                  title="Calls only exist up to today, so salary is charged up to today too — both halves of the P&L cover the same days">
+                  {chargedTo ? `counted up to ${fmtDay(chargedTo)}` : 'nothing to count yet'}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -500,9 +524,9 @@ export default function EngineerPnl() {
           sub={board ? `by ${rows.length} engineer${rows.length === 1 ? '' : 's'}${filtering ? ` (of ${allRows.length})` : ''}` : ''}
         />
         <StatCard
-          label={`Salary cost · ${daysLabel}`}
+          label={partial ? `Salary cost · ${board?.charged_days ?? 0} days so far` : `Salary cost · ${daysLabel}`}
           value={t ? rs(totSalary) : '—'}
-          sub="what each engineer earns for the days paid"
+          sub="what Payroll pays for the days so far, absences deducted"
         />
         <StatCard
           label="Profit at flat rate"
@@ -600,8 +624,8 @@ export default function EngineerPnl() {
                   <SubTh title="Calls each engineer is expected to close a day">Target / day</SubTh>
                   <SubTh title="Calls closed ÷ days present">Avg / day</SubTh>
                   <SubTh title="Calls closed in the period — click a number for the list">Closed</SubTh>
-                  <SubTh first title="Days in the period, Sundays excluded (from Payroll)">Working days</SubTh>
-                  <SubTh title="Days the engineer was present (Payroll attendance)">Present</SubTh>
+                  <SubTh first title="Working days (Sundays excluded) counted so far">Working days</SubTh>
+                  <SubTh title="Days marked Present, Late or Overtime in Payroll attendance">Present</SubTh>
                   <SubTh first title="Monthly salary (from Payroll)">Monthly</SubTh>
                   <SubTh title={`Monthly salary ÷ ${cycleDays} days in this salary cycle${multiDay ? '' : '. Both Profit columns subtract this.'}`}>Per day</SubTh>
                   {multiDay && <SubTh title={`What the engineer earns for these ${daysLabel}: per-day salary × paid days. Sundays are paid; working days they missed are cut. Both Profit columns subtract this.`}>Earned</SubTh>}
@@ -630,7 +654,7 @@ export default function EngineerPnl() {
                         <td className="p-3 text-surface-600 dark:text-surface-300"><FacetCell values={facets?.locations} /></td>
                         <td className="p-3 text-surface-600 dark:text-surface-300"><FacetCell values={facets?.segments} /></td>
                         <td className={`${TD} ${G1} text-surface-400`}>{r.per_day_target}</td>
-                        <td className={`${TD} text-surface-700 dark:text-surface-300`}>{r.actual_closed_pd}</td>
+                        <td className={`${TD} text-surface-700 dark:text-surface-300`}>{r.actual_closed_pd ?? <span className="text-surface-300">—</span>}</td>
                         <td className={`${TD} font-bold`}>
                           {r.total_calls_closed_pm > 0 ? (
                             <button onClick={() => setDrill({ engineer: r.engineer_name, expected: r.total_calls_closed_pm })}
@@ -640,9 +664,25 @@ export default function EngineerPnl() {
                             </button>
                           ) : <span className="text-surface-400">0</span>}
                         </td>
-                        <td className={`${TD} ${G1} text-surface-600 dark:text-surface-300`}>{r.total_working_days}</td>
+                        <td className={`${TD} ${G1} text-surface-600 dark:text-surface-300`}
+                          title={partial ? `${r.total_working_days} working days so far (to ${fmtDay(chargedTo!)}) of ${r.window_working_days} in the period` : 'Days in the period, Sundays excluded'}>
+                          {r.total_working_days}
+                          {partial && <div className="text-[10px] text-surface-400">of {r.window_working_days}</div>}
+                        </td>
                         <td className={`${TD} text-surface-700 dark:text-surface-200`}>
-                          <Sourced from={r.working_days_source === 'payroll' ? 'payroll' : board?.working_days_ok ? 'manual' : undefined}>{r.actual_working_days}</Sourced>
+                          {r.actual_working_days == null ? (
+                            <span className="text-surface-300" title="Not linked to Payroll, so there is no attendance">—</span>
+                          ) : (
+                            <>
+                              <Sourced from="payroll">{r.actual_working_days}</Sourced>
+                              {(r.unmarked_days ?? 0) > 0 && (
+                                <div className="text-[10px] text-amber-600 dark:text-amber-400"
+                                  title={`${r.unmarked_days} working day${r.unmarked_days === 1 ? ' has' : 's have'} no attendance at all. Payroll pays such days; if they were absences, mark them Absent in Payroll.`}>
+                                  {r.unmarked_days} unmarked
+                                </div>
+                              )}
+                            </>
+                          )}
                         </td>
                         <td className={`${TD} ${G1} text-surface-600 dark:text-surface-300`}>
                           <Sourced from={r.salary_source === 'payroll' ? 'payroll' : board?.payroll_ok ? 'manual' : undefined}>{rs(r.engg_salary)}</Sourced>
@@ -650,12 +690,12 @@ export default function EngineerPnl() {
                         <td className={`${TD} text-surface-600 dark:text-surface-300`} title={`${rs(r.engg_salary)} ÷ ${cycleDays} days`}>{rs(r.daily_rate ?? r.per_day)}</td>
                         {multiDay && (
                           <td className={`${TD} text-surface-700 dark:text-surface-200`}
-                            title={`${rs(r.daily_rate ?? r.per_day)} a day × ${r.paid_days ?? days} paid days`
-                              + ((r.absent_days ?? 0) > 0 ? ` (${days} days − ${r.absent_days} working day${r.absent_days === 1 ? '' : 's'} missed)` : '')
-                              + (r.working_days_source === 'payroll' ? '' : ' — no Payroll attendance, so every day is counted')}>
+                            title={earnedWhy(r)}>
                             {rs(r.window_salary ?? r.per_day)}
                             <div className={`text-[10px] font-normal ${(r.absent_days ?? 0) > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-surface-400'}`}>
-                              {(r.absent_days ?? 0) > 0 ? `${r.paid_days} of ${days} days · ${r.absent_days} missed` : `${r.paid_days ?? days} of ${days} days`}
+                              {r.salary_basis === 'payslip' ? 'payslip · ' : ''}
+                              {r.paid_days ?? days}/{r.charged_days ?? days} days
+                              {(r.absent_days ?? 0) > 0 ? ` · ${r.absent_days} unpaid` : ''}
                             </div>
                           </td>
                         )}
@@ -1428,7 +1468,7 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
 /* ── Table + summary building blocks ─────────────────────────────── */
 
 const TH = 'p-3 font-semibold align-bottom'
-const TD = 'p-3 text-right tabular-nums'
+const TD = 'px-2.5 py-3 text-right tabular-nums'
 /** Left rule that opens a column group, so the groups read as blocks. */
 const G1 = 'border-l border-surface-100 dark:border-surface-700'
 
@@ -1529,11 +1569,12 @@ function HowItWorks() {
         <dl className="grid gap-x-8 gap-y-3 px-4 pb-4 sm:grid-cols-2 text-sm">
           {[
             ['Closed calls', 'Pulled live from OpenCall for the period chosen at the top.'],
-            ['Attendance: Working days', 'Days in the chosen period, leaving out Sundays.'],
-            ['Attendance: Present', 'Days Payroll attendance marks the engineer Present, Late or Overtime. Leave and Absent do not count; a Sunday they actually worked does. Avg / day = calls closed ÷ days present.'],
+            ['Up to today only', 'Calls only exist up to today, so salary is charged up to today as well. Mid-cycle, both halves of the P&L cover the same days instead of a whole month of salary against half a month of calls.'],
+            ['Attendance: Working days', 'Days counted so far, leaving out Sundays ("of 26" shows the whole period).'],
+            ['Attendance: Present', 'Days Payroll attendance marks the engineer Present, Late or Overtime. "Unmarked" means a working day with no attendance at all: Payroll pays it, so mark it Absent in Payroll if it was one. Avg / day = calls closed ÷ days present.'],
             ['Salary: Monthly', 'The engineer’s full monthly salary from Payroll. A teal dot means it came from Payroll; amber means it was typed in here because the engineer is not linked yet.'],
             ['Salary: Per day', 'Monthly salary ÷ days in that salary cycle (25th–24th, 28–31 days). ₹24,000 over a 30-day cycle is ₹800 a day.'],
-            ['Salary: Earned', 'Per-day salary × paid days, which is what both Profit columns subtract. Every day is paid, Sundays included, except working days the engineer missed (only days already over count). Example: ₹26,207 over a 31-day cycle is ₹845 a day; 26 working days, present 24, so 2 are cut: ₹845 × 29 = ₹24,517.'],
+            ['Salary: Earned', 'Exactly what Payroll pays, and what both Profit columns subtract. Every day is paid — Sundays and Leave included — except days marked Absent, less one day of casual leave a cycle after six months\u2019 service. A finished cycle with a payslip uses the payslip amount itself. Example: ₹26,207 over a 31-day cycle is ₹845.39 a day; 2 unpaid days leave 29 paid: ₹24,516.'],
             ['Flat rate profit', 'Closed calls × ₹420 (or the rate set for that engineer), minus the salary for the period.'],
             ['HP raw data profit', 'Each call priced at what HP pays for it, minus the same salary. This is the closer-to-real figure.'],
             ['Exact vs estimated', 'A call already in HP\'s raw data gets the exact amount HP paid. Newer calls (HP sends each cycle\'s data on the 17th of the next month) use what HP paid for the same product over its last 3 months, and become exact once that data is uploaded.'],

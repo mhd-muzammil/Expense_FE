@@ -1299,7 +1299,7 @@ export interface EngineerPnlRow {
   /** Window's working days (less Sundays) from Payroll, else the configured figure. */
   total_working_days: number
   /** Days present in the window from Payroll attendance, else the configured figure. */
-  actual_working_days: number
+  actual_working_days: number | null
   working_days_source: 'payroll' | 'manual'
   /** The engineer's own configured working days — what the edit form saves. */
   manual_total_working_days: number
@@ -1322,12 +1322,21 @@ export interface EngineerPnlRow {
   daily_rate: string
   /** Salary owed for THIS window: the one-day rate times period_days. */
   window_salary: string
-  /** Days paid in the window: every day less working days missed (Payroll attendance). */
+  /** Days of the window charged so far (never past today). */
+  charged_days?: number
+  /** Charged days less unpaid ones. */
   paid_days?: number
-  /** Working days missed so far in the window. */
+  /** Unpaid days: marked Absent less casual leave (or the payslip's own figure). */
   absent_days?: number
+  absent_marked?: number
+  casual_leave_days?: number
+  /** Working days with no attendance row at all. */
+  unmarked_days?: number
+  /** Working days in the whole window (total_working_days is so far). */
+  window_working_days?: number
+  salary_basis?: 'payslip' | 'attendance' | 'manual' | 'mixed' | 'none'
   closed_calls: number
-  actual_closed_pd: string
+  actual_closed_pd: string | null
   total_calls_closed_pm: number
   per_day: string
   revenue: string
@@ -1367,6 +1376,10 @@ export interface EngineerPnlBoard {
   working_days_ok: boolean | null
   working_days_message: string
   working_days_total: number | null
+  /** Salary is charged from charged_from to charged_to (never past today). */
+  charged_from?: string | null
+  charged_to?: string | null
+  charged_days?: number
   raw_ok: boolean
   raw_message: string
   raw_status: RawDataStatus | null
