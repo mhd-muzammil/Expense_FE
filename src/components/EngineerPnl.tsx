@@ -6,7 +6,7 @@ import {
 import useExpenseStore from '@/store/useExpenseStore'
 import {
   fetchEngineerPnlBoard, createEngineerPnl, updateEngineerPnl, fetchEngineerClosedCalls, fetchPayrollEmployees,
-  fetchRegionHistory, uploadFlexRawData,
+  fetchRegionHistory, uploadFlexRawData, syncFlexRawData,
   type EngineerPnlBoard, type EngineerPnlRow, type EngineerPnlFormData, type EngineerClosedCall,
   type PayrollEmployees, type RegionValue, type RegionCycle,
 } from '@/lib/api'
@@ -34,6 +34,14 @@ const fmtRange = (from: string, to: string) => {
 }
 const titleCase = (v: string) => v.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
 const currentDay = () => new Date().toISOString().slice(0, 10)
+/** "5 min ago", "3 h ago", "2 days ago". */
+const ago = (iso: string) => {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m} min ago`
+  const h = Math.round(m / 60)
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`
+}
 /** The column-filter option for engineers with no value in that column, as Excel names it. */
 const BLANK = '(Blanks)'
 
@@ -1217,6 +1225,23 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
     }
   }
 
+  const [syncing, setSyncing] = useState(false)
+  const syncNow = async () => {
+    setSyncing(true)
+    try {
+      const res = await syncFlexRawData()
+      addToast('success', res.unchanged ? 'Raw data is already up to date'
+        : `Synced from rawdata.systimus.in: ${res.created ?? 0} new, ${res.updated ?? 0} updated calls`)
+      setHistory(null)
+      onUploaded()
+    } catch (e) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      addToast('error', msg || 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const total = parseFloat(totals?.value ?? '0')
   const regionNames = [...new Set((history?.cycles ?? []).flatMap((c) => c.regions.map((r) => r.region)))].sort()
   const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'
@@ -1244,10 +1269,15 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
             <>
               <input ref={fileRef} type="file" accept=".xlsx" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f) }} />
-              <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                title="Load a newer Flex raw export (.xlsx). Exports are cumulative, so the latest one is enough."
+              <button onClick={syncNow} disabled={syncing}
+                title="Pull the latest raw data from rawdata.systimus.in now (it also syncs by itself every 30 minutes)"
                 className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold border border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700 disabled:opacity-60">
-                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} Raw data
+                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} /> Sync now
+              </button>
+              <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                title="Fallback: load a Flex raw export (.xlsx) by hand"
+                className="flex items-center justify-center h-8 w-8 rounded-lg border border-surface-200 dark:border-surface-700 text-surface-500 hover:bg-surface-50 dark:hover:bg-surface-700 disabled:opacity-60">
+                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
               </button>
             </>
           )}
@@ -1377,8 +1407,9 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
       })()}
       <p className="mt-3 text-[11px] text-surface-400">
         {status && status.count > 0
-          ? <>Raw data: {status.count.toLocaleString('en-IN')} calls closed {fmtDate(status.closed_from)} to {fmtDate(status.closed_to)}. Calls in it show the exact amount HP paid; newer calls are estimated from what HP paid for the same product over its last 3 months.</>
-          : <>No raw data loaded yet, so every value is an overall estimate. {isAdmin ? 'Upload the latest Flex raw export with the Raw data button.' : 'Ask an admin to upload the Flex raw export.'}</>}
+          ? <>Raw data from <a href="https://rawdata.systimus.in" target="_blank" rel="noreferrer" className="underline decoration-dotted hover:text-violet-600">rawdata.systimus.in</a>: {status.count.toLocaleString('en-IN')} calls closed {fmtDate(status.closed_from)} to {fmtDate(status.closed_to)}{status.synced_at ? `, synced ${ago(status.synced_at)}` : ''}. Calls in it show the exact amount HP paid; newer calls are estimated from what HP paid for the same product over its last 3 months.</>
+          : <>No raw data yet, so every value is an overall estimate. It syncs from rawdata.systimus.in by itself{isAdmin ? ', or press Sync now' : ''}.</>}
+        {status?.sync_error && <span className="block mt-1 text-amber-600 dark:text-amber-400">Last sync failed: {status.sync_error}</span>}
       </p>
     </div>
   )

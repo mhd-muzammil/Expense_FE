@@ -1390,6 +1390,14 @@ export interface RawDataStatus {
   closed_from: string | null
   closed_to: string | null
   last_import: string | null
+  /** Where the raw data syncs from (rawdata.systimus.in's work_orders.json). */
+  source_url?: string
+  synced_at?: string | null
+  checked_at?: string | null
+  /** When the dashboard last rebuilt its data. */
+  generated?: string
+  sync_error?: string
+  sync_result?: string
 }
 
 export interface RegionCycle {
@@ -1404,6 +1412,12 @@ export interface RegionCycle {
 export const fetchRegionHistory = (cycles = 6) =>
   api.get<{ ok: boolean; message: string; cycles: RegionCycle[] }>(`/engineer-pnl/region-history/?cycles=${cycles}`)
     .then(res => res.data)
+
+/** Pull the raw data from rawdata.systimus.in now (admin). */
+export const syncFlexRawData = () =>
+  api.post<{ ok: boolean; unchanged?: boolean; created?: number; updated?: number; status?: RawDataStatus }>(
+    '/engineer-pnl/raw-data/sync/', {}, { timeout: 120000 },
+  ).then(res => res.data)
 
 export const uploadFlexRawData = (file: File) => {
   const fd = new FormData()
