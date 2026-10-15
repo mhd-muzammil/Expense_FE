@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Pencil, X, CheckCircle2, AlertCircle, Receipt, Tag, User, Calendar, Zap, ArrowLeftRight, Banknote, Layers, type LucideIcon } from 'lucide-react'
+import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Pencil, X, CheckCircle2, AlertCircle, Receipt, Tag, User, Calendar } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import ExpenseForm from './ExpenseForm'
 import {
@@ -26,24 +26,6 @@ const fmtDate = (d: string | null) => {
   return `${day}-${m}-${y}`
 }
 
-// IDFC non-UPI transaction groups, shown as cards above the table. UPI rows are
-// the bulk of the statement, so these surface everything else at a glance.
-type TxnCategory = 'imps' | 'neft' | 'cash' | 'other'
-const CATEGORIES: Array<{ key: TxnCategory; label: string; hint: string; icon: LucideIcon }> = [
-  { key: 'imps', label: 'IMPS', hint: 'Instant transfers', icon: Zap },
-  { key: 'neft', label: 'NEFT / RTGS', hint: 'Bank transfers', icon: ArrowLeftRight },
-  { key: 'cash', label: 'ATM / Cash', hint: 'ATM withdrawals and cash', icon: Banknote },
-  { key: 'other', label: 'Others', hint: 'Card payments, charges, interest', icon: Layers },
-]
-const categoryOf = (narration: string): TxnCategory | 'upi' => {
-  const n = narration.trim().toUpperCase()
-  if (/^UPI\b/.test(n)) return 'upi'
-  if (/^IMPS\b/.test(n)) return 'imps'
-  if (/^(DEP-)?(NEFT|RTGS)\b/.test(n)) return 'neft'
-  if (/^(ATM|BY CASH|CASH)\b/.test(n)) return 'cash'
-  return 'other'
-}
-
 export default function BankStatement({ bank, title, subtitle }: { bank: BankKey; title: string; subtitle: string }) {
   const addToast = useExpenseStore((s) => s.addToast)
 
@@ -51,7 +33,6 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
   const [summary, setSummary] = useState({ total: 0, matched: 0, missing: 0 })
   const [suggestedMode, setSuggestedMode] = useState('')
   const [onlyMissing, setOnlyMissing] = useState(false)
-  const [category, setCategory] = useState<TxnCategory | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
@@ -81,27 +62,11 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
     }
   }
 
-  // Rows shown in the table (optionally only the ones missing from Expenses,
-  // and/or only the category card that was clicked).
+  // Rows shown in the table (optionally only the ones missing from Expenses).
   const displayRows = useMemo(
-    () => rows.filter((r) =>
-      (!onlyMissing || r.expense_status === 'missing') &&
-      (!category || categoryOf(r.narration) === category)),
-    [rows, onlyMissing, category],
+    () => (onlyMissing ? rows.filter((r) => r.expense_status === 'missing') : rows),
+    [rows, onlyMissing],
   )
-
-  const catTotals = useMemo(() => {
-    const t = Object.fromEntries(CATEGORIES.map((c) => [c.key, { count: 0, dr: 0, cr: 0 }])) as
-      Record<TxnCategory, { count: number; dr: number; cr: number }>
-    rows.forEach((r) => {
-      const k = categoryOf(r.narration)
-      if (k === 'upi') return
-      t[k].count += 1
-      t[k].dr += num(r.debit)
-      t[k].cr += num(r.credit)
-    })
-    return t
-  }, [rows])
 
   useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [bank])
   useEffect(() => {
@@ -143,7 +108,6 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
       addToast('success', res.detail || 'Cleared')
       setRows([])
       setSummary({ total: 0, matched: 0, missing: 0 })
-      setCategory(null)
     } catch {
       addToast('error', 'Failed to clear')
     } finally {
@@ -250,44 +214,6 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
         </div>
       </div>
 
-      {/* IDFC non-UPI category cards — click one to show only those rows */}
-      {bank === 'idfc' && rows.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-5">
-          {CATEGORIES.map(({ key, label, hint, icon: Icon }) => {
-            const t = catTotals[key]
-            const active = category === key
-            return (
-              <button
-                key={key}
-                onClick={() => setCategory(active ? null : key)}
-                disabled={t.count === 0}
-                title={active ? 'Click to show all rows' : `${hint} — click to show only these rows`}
-                className={`text-left rounded-2xl bg-white dark:bg-surface-800 border p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  active
-                    ? 'border-primary-500 ring-2 ring-primary-500/30'
-                    : 'border-surface-100 dark:border-surface-700 hover:border-primary-300 dark:hover:border-primary-700'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-primary-600 dark:text-primary-400"><Icon className="w-3.5 h-3.5" /> {label}</div>
-                  <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 whitespace-nowrap">{t.count} entries</span>
-                </div>
-                <div className="mt-2 space-y-0.5 text-sm">
-                  <div className="flex justify-between gap-2">
-                    <span className="text-surface-400">Out</span>
-                    <span className="font-semibold text-red-600 dark:text-red-400">{t.dr ? `₹${inr(t.dr)}` : '—'}</span>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-surface-400">In</span>
-                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">{t.cr ? `₹${inr(t.cr)}` : '—'}</span>
-                  </div>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      )}
-
       {/* Reconciliation strip: how many statement rows are recorded in Expenses */}
       {!loading && rows.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 px-1">
@@ -324,7 +250,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
             {onlyMissing && rows.length > 0 ? (
               <>
                 <CheckCircle2 className="w-12 h-12 text-emerald-400 dark:text-emerald-500 mb-3" />
-                <p className="text-surface-500 dark:text-surface-400 font-medium">{category ? 'Every row in this category is recorded in Expenses 🎉' : 'Every statement row is recorded in Expenses 🎉'}</p>
+                <p className="text-surface-500 dark:text-surface-400 font-medium">Every statement row is recorded in Expenses 🎉</p>
                 <button onClick={() => setOnlyMissing(false)} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">Show all rows</button>
               </>
             ) : (
@@ -356,10 +282,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
                   <tr key={r.id} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30 transition-colors">
                     <td className="p-3 text-surface-700 dark:text-surface-300 whitespace-nowrap align-top">{fmtDate(r.txn_date)}</td>
                     <td className="p-3 text-surface-500 dark:text-surface-400 whitespace-nowrap align-top">{fmtDate(r.value_date)}</td>
-                    {/* UPI/NEFT narrations are long strings with no spaces; let them
-                        break anywhere so the column can shrink and Balance/Status
-                        stay on screen instead of being pushed off to the right. */}
-                    <td className="p-3 text-surface-700 dark:text-surface-300 align-top min-w-56 wrap-anywhere">{r.narration}</td>
+                    <td className="p-3 text-surface-700 dark:text-surface-300 align-top">{r.narration}</td>
                     <td className="p-3 text-surface-500 dark:text-surface-400 whitespace-nowrap align-top">{r.ref_no || ''}</td>
                     <td className="p-3 text-right font-medium text-red-600 dark:text-red-400 whitespace-nowrap align-top">{num(r.debit) ? inr(r.debit) : ''}</td>
                     <td className="p-3 text-right font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap align-top">{num(r.credit) ? inr(r.credit) : ''}</td>
