@@ -282,7 +282,10 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
                   <tr key={r.id} className="border-b border-surface-100 dark:border-surface-700/50 hover:bg-surface-50/50 dark:hover:bg-surface-700/30 transition-colors">
                     <td className="p-3 text-surface-700 dark:text-surface-300 whitespace-nowrap align-top">{fmtDate(r.txn_date)}</td>
                     <td className="p-3 text-surface-500 dark:text-surface-400 whitespace-nowrap align-top">{fmtDate(r.value_date)}</td>
-                    <td className="p-3 text-surface-700 dark:text-surface-300 align-top">{r.narration}</td>
+                    {/* UPI/NEFT narrations are long strings with no spaces; let them
+                        break anywhere so the column can shrink and Balance/Status
+                        stay on screen instead of being pushed off to the right. */}
+                    <td className="p-3 text-surface-700 dark:text-surface-300 align-top min-w-56 wrap-anywhere">{r.narration}</td>
                     <td className="p-3 text-surface-500 dark:text-surface-400 whitespace-nowrap align-top">{r.ref_no || ''}</td>
                     <td className="p-3 text-right font-medium text-red-600 dark:text-red-400 whitespace-nowrap align-top">{num(r.debit) ? inr(r.debit) : ''}</td>
                     <td className="p-3 text-right font-medium text-emerald-600 dark:text-emerald-400 whitespace-nowrap align-top">{num(r.credit) ? inr(r.credit) : ''}</td>
