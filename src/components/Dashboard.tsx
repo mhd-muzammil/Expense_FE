@@ -214,7 +214,7 @@ const FREQUENCY_COLORS: Record<string, string> = {
 }
 
 export function PettyCashDrawerSection() {
-  const { branches, filters } = useExpenseStore()
+  const { branches, filters, addToast } = useExpenseStore()
   const [summary, setSummary] = useState<PettyCashSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -305,6 +305,7 @@ export function PettyCashDrawerSection() {
       resetForm()
     } catch (err) {
       console.error('Failed to save petty cash debit:', err)
+      addToast('error', 'Failed to save entry. Please try again.')
     } finally {
       setSubmitting(false)
     }
