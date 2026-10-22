@@ -1244,6 +1244,8 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
   const addToast = useExpenseStore((s) => s.addToast)
   const isAdmin = useExpenseStore((s) => !!s.user?.is_admin)
   const [tab, setTab] = useState<'period' | 'months'>('period')
+  // The All regions tile opens the same "made up" breakdown a region tile does.
+  const [allOpen, setAllOpen] = useState(false)
   const [history, setHistory] = useState<{ loading: boolean; error: string; cycles: RegionCycle[] } | null>(null)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -1344,8 +1346,9 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
           <p className="text-sm text-surface-400 py-3">No closed calls in this period.</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-            <button onClick={() => selected && onPick(selected)} title={selected ? 'Show every engineer again' : 'Every region together'}
-              className={`text-left rounded-xl border px-3.5 py-3 transition-all ${selected ? 'border-violet-200 dark:border-violet-800/60 opacity-70 hover:opacity-100' : 'border-violet-300 dark:border-violet-700 bg-violet-50/60 dark:bg-violet-900/20'}`}>
+            <button onClick={() => { if (selected) { onPick(selected); setAllOpen(true) } else setAllOpen(!allOpen) }} aria-pressed={!selected && allOpen}
+              title={selected ? 'Show every engineer again' : allOpen ? 'Hide the breakdown' : 'See how every region together is made up'}
+              className={`text-left rounded-xl border px-3.5 py-3 transition-all ${selected ? 'border-violet-200 dark:border-violet-800/60 opacity-70 hover:opacity-100' : allOpen ? 'border-violet-500 ring-2 ring-violet-500/40 bg-violet-50/60 dark:bg-violet-900/20' : 'border-violet-300 dark:border-violet-700 bg-violet-50/60 dark:bg-violet-900/20 hover:shadow-sm'}`}>
               <div className="text-[11px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">All regions</div>
               <div className="mt-0.5 text-xl font-bold tabular-nums text-violet-700 dark:text-violet-300">{rs(total)}</div>
               <div className="text-[11px] text-surface-500">{totals?.calls ?? 0} calls · {fmtRange(from, to)}</div>
@@ -1410,16 +1413,47 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
         </div>
       )}
 
-      {tab === 'period' && selected && (() => {
-        const r = regions.find((x) => x.region.toUpperCase() === selected)
+      {tab === 'period' && (selected || (allOpen && regions.length > 0)) && (() => {
+        let r: RegionValue | undefined
+        let label: string
+        if (selected) {
+          r = regions.find((x) => x.region.toUpperCase() === selected)
+          label = r ? titleCase(r.region) : ''
+        } else {
+          // Every region together: the totals, with each engineer's calls summed across regions.
+          const byEng = new Map<string, { engineer_name: string; calls: number; value: number }>()
+          for (const reg of regions) {
+            for (const e of reg.engineers ?? []) {
+              const cur = byEng.get(e.engineer_name) ?? { engineer_name: e.engineer_name, calls: 0, value: 0 }
+              cur.calls += e.calls
+              cur.value += parseFloat(e.value) || 0
+              byEng.set(e.engineer_name, cur)
+            }
+          }
+          r = {
+            region: 'All regions',
+            calls: totals?.calls ?? 0,
+            value: totals?.value ?? '0',
+            actual: totals?.actual ?? 0,
+            rejected: totals?.rejected ?? 0,
+            estimated: totals?.estimated ?? 0,
+            actual_value: totals?.actual_value ?? '0',
+            estimated_value: totals?.estimated_value ?? '0',
+            engineers: [...byEng.values()]
+              .sort((a, b) => b.value - a.value)
+              .map((e) => ({ engineer_name: e.engineer_name, calls: e.calls, value: e.value.toFixed(2) })),
+          }
+          label = 'All regions'
+        }
         if (!r) return null
+        const possessive = selected ? `${label}’s` : 'all regions’'
         return (
           <div className="mt-3 rounded-xl border border-violet-200 dark:border-violet-800/60 bg-violet-50/40 dark:bg-violet-900/10 p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h4 className="font-semibold text-surface-900 dark:text-white">
-                How {titleCase(r.region)}&rsquo;s {rs(r.value)} is made up
+                How {possessive} {rs(r.value)} is made up
               </h4>
-              <span className="text-xs text-surface-500">{r.calls} calls closed in {titleCase(r.region)} · {fmtRange(from, to)}</span>
+              <span className="text-xs text-surface-500">{r.calls} calls closed{selected ? ` in ${label}` : ` across ${regions.length} regions`} · {fmtRange(from, to)}</span>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3 text-sm">
               <div className="rounded-lg bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 px-3 py-2">
@@ -1437,7 +1471,7 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
             </div>
             {(r.engineers?.length ?? 0) > 0 && (
               <div className="mt-3">
-                <div className="text-xs font-semibold text-surface-500 mb-1.5">By engineer, {titleCase(r.region)} calls only</div>
+                <div className="text-xs font-semibold text-surface-500 mb-1.5">{selected ? `By engineer, ${label} calls only` : 'By engineer, all regions'}</div>
                 <div className="flex flex-wrap gap-2">
                   {r.engineers!.map((e) => (
                     <span key={e.engineer_name} className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 px-3 py-1.5 text-sm">
@@ -1449,9 +1483,11 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
                 </div>
               </div>
             )}
-            <p className="mt-3 text-[11px] text-surface-500">
-              The engineers table below lists these people with their figures across <em>all</em> regions, salary included, so its totals will not match this card.
-            </p>
+            {selected && (
+              <p className="mt-3 text-[11px] text-surface-500">
+                The engineers table below lists these people with their figures across <em>all</em> regions, salary included, so its totals will not match this card.
+              </p>
+            )}
           </div>
         )
       })()}
