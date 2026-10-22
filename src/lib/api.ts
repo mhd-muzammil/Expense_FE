@@ -1480,6 +1480,17 @@ export interface EngineerClosedCall {
   raw_source?: 'actual' | 'rejected' | 'estimated'
   raw_basis?: string
   region?: string
+  /** What HP's raw data says about the call; null when it is not in the raw data yet. */
+  hp?: {
+    ticket_no: string
+    /** PO REMARK, e.g. "PO ISSUED", "REJECTED (CASE ID ALREADY PAID)", "CALL CANCELLED". */
+    remark: string
+    /** BREAKFIX / INSTALL. */
+    call_type: string
+    segment: string
+    po_value: string
+    closed_on: string | null
+  } | null
   /**
    * The engineer's canonical name — what the board calls them. `engineer` is the raw
    * report text, which differs for an aliased name, so group on this one.

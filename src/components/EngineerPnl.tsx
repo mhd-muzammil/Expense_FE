@@ -1246,6 +1246,8 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
   const [tab, setTab] = useState<'period' | 'months'>('period')
   // The All regions tile opens the same "made up" breakdown a region tile does.
   const [allOpen, setAllOpen] = useState(false)
+  // A Paid / Estimated / Rejected box opens the calls behind it.
+  const [bucket, setBucket] = useState<{ source: RawSource; region: string | null; label: string; expected: number } | null>(null)
   const [history, setHistory] = useState<{ loading: boolean; error: string; cycles: RegionCycle[] } | null>(null)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -1456,18 +1458,22 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
               <span className="text-xs text-surface-500">{r.calls} calls closed{selected ? ` in ${label}` : ` across ${regions.length} regions`} · {fmtRange(from, to)}</span>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-3 text-sm">
-              <div className="rounded-lg bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 px-3 py-2">
-                <div className="flex items-center gap-1.5 text-xs text-surface-500"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Paid by HP (exact)</div>
-                <div className="font-bold tabular-nums text-surface-900 dark:text-white">{rs(r.actual_value)} <span className="text-xs font-normal text-surface-400">· {r.actual} calls</span></div>
-              </div>
-              <div className="rounded-lg bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 px-3 py-2">
-                <div className="flex items-center gap-1.5 text-xs text-surface-500"><span className="w-2 h-2 rounded-full bg-amber-400" /> Estimated (not in HP data yet)</div>
-                <div className="font-bold tabular-nums text-surface-900 dark:text-white">{rs(r.estimated_value)} <span className="text-xs font-normal text-surface-400">· {r.estimated} calls</span></div>
-              </div>
-              <div className="rounded-lg bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 px-3 py-2">
-                <div className="flex items-center gap-1.5 text-xs text-surface-500"><span className="w-2 h-2 rounded-full bg-red-400" /> Rejected by HP</div>
-                <div className="font-bold tabular-nums text-surface-900 dark:text-white">₹0 <span className="text-xs font-normal text-surface-400">· {r.rejected} calls</span></div>
-              </div>
+              {([
+                ['actual', 'Paid by HP (exact)', 'bg-emerald-500', r.actual_value, r.actual],
+                ['estimated', 'Estimated (not paid by HP yet)', 'bg-amber-400', r.estimated_value, r.estimated],
+                ['rejected', 'Rejected by HP', 'bg-red-400', '0', r.rejected],
+              ] as const).map(([source, title, dot, value, n]) => (
+                <button key={source} type="button" disabled={n === 0}
+                  onClick={() => setBucket({ source, region: selected, label, expected: n })}
+                  title={n === 0 ? 'No calls' : `See the ${n} call${n === 1 ? '' : 's'}`}
+                  className="group text-left rounded-lg bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 px-3 py-2 transition-all enabled:hover:border-violet-300 enabled:hover:shadow-sm disabled:cursor-default">
+                  <div className="flex items-center gap-1.5 text-xs text-surface-500">
+                    <span className={`w-2 h-2 rounded-full ${dot}`} /> {title}
+                    {n > 0 && <span className="ml-auto inline-flex items-center gap-0.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400 opacity-70 group-hover:opacity-100">See calls <ChevronRight className="w-3 h-3" /></span>}
+                  </div>
+                  <div className="font-bold tabular-nums text-surface-900 dark:text-white">{rs(value)} <span className="text-xs font-normal text-surface-400">· {n} calls</span></div>
+                </button>
+              ))}
             </div>
             {(r.engineers?.length ?? 0) > 0 && (
               <div className="mt-3">
@@ -1497,6 +1503,230 @@ function RegionCard({ regions, totals, status, from, to, onUploaded, selected, o
           : <>No raw data yet, so every value is an overall estimate. It syncs from rawdata.systimus.in by itself{isAdmin ? ', or press Sync now' : ''}.</>}
         {status?.sync_error && <span className="block mt-1 text-amber-600 dark:text-amber-400">Last sync failed: {status.sync_error}</span>}
       </p>
+      {bucket && <RegionCallsModal {...bucket} from={from} to={to} onClose={() => setBucket(null)} />}
+    </div>
+  )
+}
+
+type RawSource = 'actual' | 'estimated' | 'rejected'
+
+const BUCKET_TITLE: Record<RawSource, string> = {
+  actual: 'Paid by HP',
+  estimated: 'Estimated',
+  rejected: 'Rejected by HP',
+}
+
+/** Why a call sits in its box: HP's PO remark, or that HP has no record of it yet.
+ *  A backend that predates `hp` only sends the basis, which starts with the same remark. */
+const callReason = (c: EngineerClosedCall) => {
+  if (c.hp) return c.hp.remark || 'No remark from HP'
+  if (c.hp === null) return 'Not in HP data yet'
+  const b = (c.raw_basis ?? '').split(' · ')[0].replace(/ at HP$/, '')
+  return /^Not in raw data/.test(b) ? 'Not in HP data yet' : (b || '—')
+}
+
+/** How an estimated call was priced: the part of the basis after the reason. */
+const estimateBasis = (c: EngineerClosedCall) => {
+  const b = c.raw_basis ?? ''
+  const i = b.indexOf(' · ')
+  return i >= 0 ? b.slice(i + 3) : b
+}
+
+/** A call's date as "22 Oct 2026"; anything that is not a plain date is shown as given. */
+const callDay = (d: string | null | undefined) => (!d ? '—' : /^\d{4}-\d{2}-\d{2}$/.test(d) ? fmtDay(d) : d)
+
+const callValue = (c: EngineerClosedCall) => parseFloat(c.raw_value ?? '0') || 0
+
+/**
+ * The calls behind one box of the region breakdown (paid / estimated / rejected),
+ * newest first, with what HP says about each: its remark (why it is rejected or
+ * still pending), the call type and when HP closed it.
+ */
+function RegionCallsModal({ source, region, label, expected, from, to, onClose }: {
+  source: RawSource
+  region: string | null
+  label: string
+  expected: number
+  from: string
+  to: string
+  onClose: () => void
+}) {
+  const [calls, setCalls] = useState<EngineerClosedCall[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [reason, setReason] = useState<string | null>(null)
+  const [kind, setKind] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      setLoading(true)
+      try {
+        const res = await fetchEngineerClosedCalls({ from, to })
+        if (!alive) return
+        setCalls(res.calls
+          .filter((c) => c.raw_source === source && (!region || (c.region ?? '').toUpperCase() === region))
+          .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (a.engineer_name || '').localeCompare(b.engineer_name || '')))
+        setError(res.live_ok ? '' : (res.message || 'Closed-call details are not live yet.'))
+      } catch {
+        if (alive) setError('Could not load the calls.')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    })()
+    return () => { alive = false }
+  }, [source, region, from, to])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const callKind = (c: EngineerClosedCall) => c.hp?.call_type || 'Type not known'
+  const tally = (key: (c: EngineerClosedCall) => string) => {
+    const m = new Map<string, { n: number; value: number }>()
+    for (const c of calls) {
+      const cur = m.get(key(c)) ?? { n: 0, value: 0 }
+      cur.n += 1
+      cur.value += callValue(c)
+      m.set(key(c), cur)
+    }
+    return [...m.entries()].sort((a, b) => b[1].n - a[1].n)
+  }
+  const reasons = tally(callReason)
+  const kinds = tally(callKind)
+
+  const q = search.trim().toLowerCase()
+  const shown = calls.filter((c) =>
+    (!reason || callReason(c) === reason) && (!kind || callKind(c) === kind) &&
+    (!q || [c.engineer_name, c.ticket_id, c.case_id, c.product_name, c.wo_otc_code, c.segment, c.region, callReason(c)]
+      .some((v) => (v ?? '').toLowerCase().includes(q))))
+  const src = RAW_SOURCE[source]
+  const withMoney = source !== 'rejected'
+
+  const chip = (k: string, v: { n: number; value: number }, on: boolean, onClick: () => void) => (
+    <button key={k} type="button" onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${on ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300' : 'border-surface-200 dark:border-surface-700 text-surface-600 dark:text-surface-300 hover:border-violet-300'}`}>
+      <span className="font-semibold">{k}</span>
+      <span className="text-surface-400">{v.n}</span>
+      {withMoney && <span className="tabular-nums text-violet-600 dark:text-violet-400">{rs(v.value)}</span>}
+    </button>
+  )
+
+  return (
+    <div className="fixed inset-0 z-[90] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-7xl max-h-[90vh] flex flex-col rounded-2xl bg-white dark:bg-surface-800 shadow-2xl border border-surface-100 dark:border-surface-700"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="shrink-0 flex items-start justify-between gap-3 px-5 py-4 border-b border-surface-100 dark:border-surface-700">
+          <div className="min-w-0">
+            <h3 className="font-bold text-surface-900 dark:text-white flex items-center gap-2">
+              {BUCKET_TITLE[source]}
+              <span className={`px-1.5 py-0.5 rounded text-[11px] font-semibold ${src.cls}`}>{label}</span>
+            </h3>
+            <p className="text-xs text-surface-500 dark:text-surface-400">
+              {fmtRange(from, to)}
+              {!loading && !error && (
+                <>
+                  {' · '}{calls.length} call{calls.length === 1 ? '' : 's'}
+                  {withMoney && <> · {rs(calls.reduce((t, c) => t + callValue(c), 0))}</>}
+                  {calls.length !== expected && <span className="ml-1 text-amber-600 dark:text-amber-400">(card shows {expected})</span>}
+                </>
+              )}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 shrink-0" title="Close">
+            <X className="w-5 h-5 text-surface-400" />
+          </button>
+        </div>
+
+        {!loading && !error && calls.length > 0 && (
+          <div className="shrink-0 px-5 py-3 border-b border-surface-100 dark:border-surface-700 space-y-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-surface-400 w-24">{source === 'actual' ? 'HP remark' : 'Why'}</span>
+              {reasons.map(([k, v]) => chip(k, v, reason === k, () => setReason(reason === k ? null : k)))}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-surface-400 w-24">Call type</span>
+              {kinds.map(([k, v]) => chip(k, v, kind === k, () => setKind(kind === k ? null : k)))}
+            </div>
+            <div className="relative max-w-sm">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search engineer, ticket, product…"
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg text-sm text-surface-800 dark:text-surface-100 bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30" />
+            </div>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-auto custom-scrollbar">
+          {loading ? (
+            <div className="p-6 space-y-3">
+              {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-10 rounded-lg" />)}
+            </div>
+          ) : error ? (
+            <div className="p-6 text-center">
+              <WifiOff className="w-10 h-10 mx-auto text-surface-300 dark:text-surface-600 mb-2" />
+              <p className="text-sm text-surface-600 dark:text-surface-300 font-medium">{error}</p>
+            </div>
+          ) : shown.length === 0 ? (
+            <div className="p-10 text-center text-surface-500 dark:text-surface-400">{calls.length === 0 ? 'No calls here in this period.' : 'No calls match.'}</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-surface-50 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700 text-left text-surface-600 dark:text-surface-300">
+                  <th className="p-3 font-semibold whitespace-nowrap">Closed</th>
+                  <th className="p-3 font-semibold whitespace-nowrap">Engineer</th>
+                  <th className="p-3 font-semibold whitespace-nowrap">Ticket / Case</th>
+                  <th className="p-3 font-semibold whitespace-nowrap">Call type</th>
+                  <th className="p-3 font-semibold">Product</th>
+                  {!region && <th className="p-3 font-semibold whitespace-nowrap">Region</th>}
+                  <th className="p-3 font-semibold">{source === 'estimated' ? 'Why estimated' : source === 'rejected' ? 'Why rejected' : 'HP remark'}</th>
+                  <th className="p-3 font-semibold whitespace-nowrap text-right">{source === 'estimated' ? 'Estimate' : source === 'rejected' ? 'Value' : 'HP paid'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((c, i) => (
+                  <tr key={`${c.ticket_id}-${c.date}-${i}`} className="border-b border-surface-100 dark:border-surface-700/50 align-top hover:bg-surface-50/60 dark:hover:bg-surface-700/30">
+                    <td className="p-3 whitespace-nowrap text-surface-600 dark:text-surface-300">
+                      {callDay(c.date)}
+                      {c.hp?.closed_on && c.hp.closed_on !== c.date && <span className="block text-[11px] text-surface-400">HP: {callDay(c.hp.closed_on)}</span>}
+                    </td>
+                    <td className="p-3 whitespace-nowrap font-medium text-surface-800 dark:text-surface-100">{c.engineer_name || c.engineer || '—'}</td>
+                    <td className="p-3 whitespace-nowrap">
+                      <span className="font-medium text-surface-800 dark:text-surface-100">{c.ticket_id || '—'}</span>
+                      {c.case_id && <span className="block text-[11px] text-surface-400">Case {c.case_id}</span>}
+                    </td>
+                    <td className="p-3 whitespace-nowrap">
+                      {c.hp?.call_type && <span className="inline-block px-1.5 py-0.5 rounded bg-surface-100 dark:bg-surface-700 text-[11px] font-semibold text-surface-700 dark:text-surface-200">{c.hp.call_type}</span>}
+                      <span className="block text-xs text-surface-600 dark:text-surface-300">{c.wo_otc_code || '—'}</span>
+                    </td>
+                    <td className="p-3 text-surface-700 dark:text-surface-200">
+                      {c.product_name || '—'}
+                      {(c.segment || c.hp?.segment) && <span className="block text-[11px] text-surface-400">{c.segment || c.hp?.segment}</span>}
+                    </td>
+                    {!region && <td className="p-3 whitespace-nowrap text-surface-700 dark:text-surface-200">{c.region ? titleCase(c.region) : '—'}</td>}
+                    <td className="p-3 min-w-[14rem]">
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-semibold ${c.hp ? src.cls : 'bg-surface-100 dark:bg-surface-700 text-surface-600 dark:text-surface-300'}`}>{callReason(c)}</span>
+                      {source === 'estimated' && <span className="block text-[11px] text-surface-500 mt-0.5">Priced at {estimateBasis(c)}</span>}
+                    </td>
+                    <td className="p-3 whitespace-nowrap text-right font-semibold tabular-nums text-violet-600 dark:text-violet-400">{rs(c.raw_value ?? '0')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {!loading && !error && shown.length > 0 && (
+          <div className="shrink-0 flex items-center justify-between px-5 py-2.5 border-t border-surface-100 dark:border-surface-700 text-xs text-surface-500">
+            <span>Showing {shown.length} of {calls.length}, newest first</span>
+            {withMoney && <span className="font-semibold text-surface-700 dark:text-surface-200">Total {rs(shown.reduce((t, c) => t + callValue(c), 0))}</span>}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
