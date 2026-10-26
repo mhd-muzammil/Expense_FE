@@ -30,6 +30,7 @@ import {
   AlertCircle,
   Landmark,
   Receipt,
+  Copy,
 } from 'lucide-react'
 
 function SkeletonRow() {
@@ -46,7 +47,7 @@ function SkeletonRow() {
 
 export default function ExpenseTable() {
   const {
-    expenses, totalCount, pageSize, loadingExpenses, dashboard, paymentModeBalances, statementSummary,
+    expenses, totalCount, pageSize, loadingExpenses, dashboard, paymentModeBalances, statementSummary, duplicateTotal,
     filters, setFilters, resetFilters,
     removeExpense, loadExpenses, loadDashboard, importExpenses,
     submitting,
@@ -203,6 +204,25 @@ export default function ExpenseTable() {
             <AlertCircle className="w-4 h-4" /> {statementSummary.not_in_statement.toLocaleString('en-IN')} not in Statement
           </span>
           <span className="text-xs text-surface-400 dark:text-surface-500">(bank-mode entries, across the current filter)</span>
+        </div>
+      )}
+
+      {/* Possible duplicates: entries identical to another one (same date,
+          branch, category, amount and mode) — review and delete the extra copy. */}
+      {(duplicateTotal > 0 || filters.duplicates) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-700 dark:text-amber-300">
+            <Copy className="w-4 h-4" /> {duplicateTotal.toLocaleString('en-IN')} possible duplicate {duplicateTotal === 1 ? 'entry' : 'entries'}
+          </span>
+          <span className="text-xs text-amber-700/80 dark:text-amber-300/80">
+            Same date, branch, category, amount and mode as another entry. Check the statement, then delete the extra copy.
+          </span>
+          <button
+            onClick={() => setFilters({ duplicates: filters.duplicates ? undefined : '1', page: 1 })}
+            className="ml-auto px-3 py-1 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+          >
+            {filters.duplicates ? 'Show all entries' : 'Show only duplicates'}
+          </button>
         </div>
       )}
 
@@ -478,8 +498,9 @@ export default function ExpenseTable() {
                   return (
                     <tr
                       key={expense.id}
-                      className="border-b border-surface-100 dark:border-surface-700/50
-                        hover:bg-surface-50/50 dark:hover:bg-surface-700/30 transition-colors"
+                      className={`border-b border-surface-100 dark:border-surface-700/50
+                        hover:bg-surface-50/50 dark:hover:bg-surface-700/30 transition-colors
+                        ${expense.duplicate_count ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}`}
                     >
                       <td className="p-3 text-surface-500 dark:text-surface-400 font-mono text-xs">
                         {(currentPage - 1) * 50 + idx + 1}
@@ -491,6 +512,14 @@ export default function ExpenseTable() {
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadgeClass(expense.category)}`}>
                           {expense.category}
                         </span>
+                        {expense.duplicate_count ? (
+                          <span
+                            title={`${expense.duplicate_count} identical entries — same date, branch, category, amount and mode`}
+                            className="mt-1 flex w-fit items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                          >
+                            <Copy className="w-3 h-3" /> Possible duplicate ×{expense.duplicate_count}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="p-3 text-surface-700 dark:text-surface-300 whitespace-nowrap">
                         {expense.branch_location}

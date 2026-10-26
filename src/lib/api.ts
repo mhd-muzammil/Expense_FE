@@ -103,6 +103,8 @@ export interface Expense {
   statement_status?: 'in_statement' | 'not_in_statement' | null
   // The bank-statement row this entry reconciled to (null when not matched).
   matched_statement?: MatchedStatement | null
+  // Number of identical entries (this one included); null when unique.
+  duplicate_count?: number | null
   created_at: string
 }
 
@@ -170,6 +172,8 @@ export interface PaginatedResponse<T> {
   results: T[]
   // Expenses list only: reconciliation totals across the full filtered set.
   statement_summary?: { in_statement: number; not_in_statement: number }
+  // Expenses list only: entries with an identical twin, across the filtered set.
+  duplicate_total?: number
 }
 
 export interface Filters {
@@ -179,6 +183,8 @@ export interface Filters {
   date_to?: string
   search?: string
   payment_mode?: string
+  // '1' = only entries that have an identical twin.
+  duplicates?: string
   page?: number
 }
 
