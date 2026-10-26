@@ -90,6 +90,26 @@ export default function ExpenseTable() {
     loadDashboard()
   }, [filters, loadExpenses, loadDashboard])
 
+  // Another user may add entries while this tab sits open; reload when the
+  // tab comes back into view so nobody re-enters something already there.
+  useEffect(() => {
+    let last = 0
+    const onVisible = () => {
+      // Tab switches fire both focus and visibilitychange — reload once.
+      if (document.visibilityState === 'visible' && Date.now() - last > 5000) {
+        last = Date.now()
+        loadExpenses()
+        loadDashboard()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [loadExpenses, loadDashboard])
+
   // 2. Reactive: Sync local search term with global filter state (e.g. if cleared via Reset All)
   useEffect(() => {
     if (filters.search !== searchTerm) {

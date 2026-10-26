@@ -58,6 +58,9 @@ export default function ExpenseForm({ expense, prefill, initialType, onClose }: 
     initialType || (expense?.debited_amount && parseFloat(expense.debited_amount) > 0 ? 'debit' : 'credit')
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // Set when the server finds an identical existing entry; the user must
+  // confirm before it is added a second time.
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -85,9 +88,9 @@ export default function ExpenseForm({ expense, prefill, initialType, onClose }: 
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submit = async (allowDuplicate = false) => {
     if (!validate()) return
+    setDuplicateWarning(null)
 
     try {
       const submitData = {
@@ -99,12 +102,21 @@ export default function ExpenseForm({ expense, prefill, initialType, onClose }: 
       if (expense) {
         await editExpense(expense.id, submitData)
       } else {
-        await addExpense(submitData)
+        await addExpense(allowDuplicate ? { ...submitData, allow_duplicate: true } : submitData)
       }
       onClose()
-    } catch (err) {
-      // Error handled by store
+    } catch (err: any) {
+      const dup = err?.response?.data?.duplicate
+      if (dup) {
+        setDuplicateWarning(Array.isArray(dup) ? dup[0] : String(dup))
+      }
+      // Other errors handled by store
     }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    submit()
   }
 
   const inputClass = `w-full px-4 py-2.5 rounded-xl bg-surface-50 dark:bg-surface-900
@@ -294,6 +306,31 @@ export default function ExpenseForm({ expense, prefill, initialType, onClose }: 
             <p className="text-red-500 text-sm text-center bg-red-50 dark:bg-red-900/20 rounded-lg py-2">
               {errors.amount}
             </p>
+          )}
+
+          {duplicateWarning && (
+            <div className="text-sm bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+              <p className="font-medium">Possible duplicate</p>
+              <p className="mt-1">{duplicateWarning}</p>
+              <p className="mt-1">Is this a second, separate transaction?</p>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                >
+                  No, don't add
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => submit(true)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
+                >
+                  Yes, add anyway
+                </button>
+              </div>
+            </div>
           )}
           </div>
 

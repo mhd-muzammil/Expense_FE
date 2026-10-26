@@ -311,6 +311,8 @@ const useExpenseStore = create<ExpenseStore>((set, get) => ({
       await Promise.all([get().loadExpenses(), get().loadDashboard(), get().loadPaymentModeBalances()])
     } catch (err: any) {
       set({ submitting: false })
+      // A possible duplicate is shown in the form itself, with "Add anyway".
+      if (err?.response?.data?.duplicate) throw err
       let msg = 'Failed to add expense'
       if (err?.response?.data) {
         if (typeof err.response.data === 'string') {

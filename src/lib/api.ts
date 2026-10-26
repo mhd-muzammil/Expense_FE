@@ -132,6 +132,8 @@ export interface ExpenseFormData {
   debit_remark: string
   debit_person: string
   debit_payment_mode: string
+  // Create only: confirm an entry identical to an existing one is intended.
+  allow_duplicate?: boolean
 }
 
 export interface DashboardData {
