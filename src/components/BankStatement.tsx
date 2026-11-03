@@ -69,7 +69,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
     }
   }
 
-  // IDFC rows narrowed to the Person / Office Expense view; other banks show all.
+  // IDFC rows narrowed to the Personal / Office Expense view; other banks show all.
   const viewRows = useMemo(
     () => (bank === 'idfc' ? rows.filter((r) => isPersonSpend(r.narration) === (view === 'person')) : rows),
     [rows, bank, view],
@@ -192,11 +192,11 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
         </div>
       </div>
 
-      {/* IDFC: Person Expense (narration ends in /UPI) vs Office Expense (the rest) */}
+      {/* IDFC: Personal Expense (narration ends in /UPI) vs Office Expense (the rest) */}
       {bank === 'idfc' && (
         <div className="flex w-full sm:inline-flex sm:w-auto p-1 mb-4 rounded-xl bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700">
           {([
-            { key: 'person', label: 'Person Expense', icon: User, count: personCount },
+            { key: 'person', label: 'Personal Expense', icon: User, count: personCount },
             { key: 'office', label: 'Office Expense', icon: Briefcase, count: rows.length - personCount },
           ] as const).map(({ key, label, icon: Icon, count }) => (
             <button
@@ -306,7 +306,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
             ) : rows.length > 0 ? (
               <>
                 <Landmark className="w-12 h-12 text-surface-300 dark:text-surface-600 mb-3" />
-                <p className="text-surface-500 dark:text-surface-400 font-medium">No {view === 'person' ? 'Person' : 'Office'} Expense entries</p>
+                <p className="text-surface-500 dark:text-surface-400 font-medium">No {view === 'person' ? 'Personal' : 'Office'} Expense entries</p>
               </>
             ) : (
               <>
