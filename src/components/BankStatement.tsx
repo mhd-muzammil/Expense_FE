@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Pencil, X, CheckCircle2, AlertCircle, Receipt, Tag, User, Calendar } from 'lucide-react'
+import { Landmark, Search, Trash2, Upload, Loader2, ArrowDownCircle, ArrowUpCircle, Wallet, Pencil, X, CheckCircle2, AlertCircle, Receipt, Tag, User, Calendar, Briefcase } from 'lucide-react'
 import useExpenseStore from '@/store/useExpenseStore'
 import ExpenseForm from './ExpenseForm'
 import {
@@ -26,6 +26,12 @@ const fmtDate = (d: string | null) => {
   return `${day}-${m}-${y}`
 }
 
+// The IDFC statement is split into two views by how the narration ends: a UPI
+// payment made without a note ends in "/UPI" (a person's own spend); anything
+// else — UPI with a note like "Petty cash", IMPS, NEFT, ATM — is office spend.
+type IdfcView = 'person' | 'office'
+const isPersonSpend = (narration: string) => /\/UPI\s*$/i.test(narration)
+
 export default function BankStatement({ bank, title, subtitle }: { bank: BankKey; title: string; subtitle: string }) {
   const addToast = useExpenseStore((s) => s.addToast)
 
@@ -33,6 +39,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
   const [summary, setSummary] = useState({ total: 0, matched: 0, missing: 0 })
   const [suggestedMode, setSuggestedMode] = useState('')
   const [onlyMissing, setOnlyMissing] = useState(false)
+  const [view, setView] = useState<IdfcView>('person')
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [fromDate, setFromDate] = useState('')
@@ -62,10 +69,28 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
     }
   }
 
+  // IDFC rows narrowed to the Person / Office Expense view; other banks show all.
+  const viewRows = useMemo(
+    () => (bank === 'idfc' ? rows.filter((r) => isPersonSpend(r.narration) === (view === 'person')) : rows),
+    [rows, bank, view],
+  )
+  const personCount = useMemo(() => rows.filter((r) => isPersonSpend(r.narration)).length, [rows])
+
+  // The server's matched/missing counts cover every row, so for IDFC count
+  // within the current view instead.
+  const matchCounts = useMemo(() => (
+    bank === 'idfc'
+      ? {
+          matched: viewRows.filter((r) => r.expense_status === 'matched').length,
+          missing: viewRows.filter((r) => r.expense_status === 'missing').length,
+        }
+      : summary
+  ), [bank, viewRows, summary])
+
   // Rows shown in the table (optionally only the ones missing from Expenses).
   const displayRows = useMemo(
-    () => (onlyMissing ? rows.filter((r) => r.expense_status === 'missing') : rows),
-    [rows, onlyMissing],
+    () => (onlyMissing ? viewRows.filter((r) => r.expense_status === 'missing') : viewRows),
+    [viewRows, onlyMissing],
   )
 
   useEffect(() => { load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [bank])
@@ -77,12 +102,13 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
 
   const totals = useMemo(() => {
     let dr = 0, cr = 0
-    rows.forEach((r) => { dr += num(r.debit); cr += num(r.credit) })
+    viewRows.forEach((r) => { dr += num(r.debit); cr += num(r.credit) })
     // Rows are ordered latest-first, so the current balance is the newest row
-    // that carries a balance value.
+    // that carries a balance value. It is the account's balance, so it comes
+    // from every row, not just the current view.
     const latest = rows.find((r) => r.balance != null && r.balance !== '')
     return { dr, cr, balance: latest?.balance ?? null, balanceDc: latest?.balance_dc ?? '' }
-  }, [rows])
+  }, [rows, viewRows])
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -166,6 +192,30 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
         </div>
       </div>
 
+      {/* IDFC: Person Expense (narration ends in /UPI) vs Office Expense (the rest) */}
+      {bank === 'idfc' && (
+        <div className="flex w-full sm:inline-flex sm:w-auto p-1 mb-4 rounded-xl bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700">
+          {([
+            { key: 'person', label: 'Person Expense', icon: User, count: personCount },
+            { key: 'office', label: 'Office Expense', icon: Briefcase, count: rows.length - personCount },
+          ] as const).map(({ key, label, icon: Icon, count }) => (
+            <button
+              key={key}
+              onClick={() => setView(key)}
+              className={`flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-colors ${
+                view === key
+                  ? 'bg-white dark:bg-surface-700 text-primary-700 dark:text-primary-300 shadow-sm'
+                  : 'text-surface-500 dark:text-surface-400 hover:text-surface-800 dark:hover:text-surface-200'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+              <span className={`px-1.5 py-0.5 rounded-md text-xs ${view === key ? 'bg-primary-50 dark:bg-primary-900/40' : 'bg-surface-200/70 dark:bg-surface-700'}`}>{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Date range filter */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <span className="text-xs font-semibold text-surface-500 dark:text-surface-400 mr-1">Date range</span>
@@ -198,7 +248,7 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4">
           <div className="text-xs font-medium text-surface-500 dark:text-surface-400">Entries</div>
-          <div className="text-2xl font-bold text-surface-900 dark:text-white">{rows.length}</div>
+          <div className="text-2xl font-bold text-surface-900 dark:text-white">{viewRows.length}</div>
         </div>
         <div className="rounded-2xl bg-white dark:bg-surface-800 border border-surface-100 dark:border-surface-700 p-4">
           <div className="flex items-center gap-1.5 text-xs font-medium text-red-500"><ArrowUpCircle className="w-3.5 h-3.5" /> Total Debit</div>
@@ -219,12 +269,12 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 px-1">
           <span className="text-xs font-semibold text-surface-500 dark:text-surface-400">Matched with Expenses:</span>
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-            <CheckCircle2 className="w-4 h-4" /> {summary.matched} in Expenses
+            <CheckCircle2 className="w-4 h-4" /> {matchCounts.matched} in Expenses
           </span>
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-600 dark:text-amber-400">
-            <AlertCircle className="w-4 h-4" /> {summary.missing} not in Expenses
+            <AlertCircle className="w-4 h-4" /> {matchCounts.missing} not in Expenses
           </span>
-          {summary.missing > 0 && (
+          {matchCounts.missing > 0 && (
             <button
               onClick={() => setOnlyMissing((v) => !v)}
               className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
@@ -247,11 +297,16 @@ export default function BankStatement({ bank, title, subtitle }: { bank: BankKey
           </div>
         ) : displayRows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            {onlyMissing && rows.length > 0 ? (
+            {onlyMissing && viewRows.length > 0 ? (
               <>
                 <CheckCircle2 className="w-12 h-12 text-emerald-400 dark:text-emerald-500 mb-3" />
                 <p className="text-surface-500 dark:text-surface-400 font-medium">Every statement row is recorded in Expenses 🎉</p>
                 <button onClick={() => setOnlyMissing(false)} className="mt-3 text-sm font-semibold text-primary-600 hover:text-primary-700">Show all rows</button>
+              </>
+            ) : rows.length > 0 ? (
+              <>
+                <Landmark className="w-12 h-12 text-surface-300 dark:text-surface-600 mb-3" />
+                <p className="text-surface-500 dark:text-surface-400 font-medium">No {view === 'person' ? 'Person' : 'Office'} Expense entries</p>
               </>
             ) : (
               <>
